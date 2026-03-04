@@ -1,0 +1,313 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// model User {
+//   id    Int     @id @default(autoincrement())
+//   email String  @unique
+//   name  String?
+//   posts Post[]
+// }
+
+// model Post {
+//   id        Int      @id @default(autoincrement())
+//   title     String
+//   content   String?
+//   published Boolean? @default(false)
+//   author    User?    @relation(fields: [authorId], references: [id])
+//   authorId  Int?
+// }
+
+model User {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  full_name      String   @db.VarChar(120)
+  email          String   @unique @db.VarChar(255)
+  phone          String?  @db.VarChar(30)
+  status         String   @default("active") @db.VarChar(20)
+  total_bookings Int?      @default(0)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @default(now())
+
+   userRoles UserRole[]
+   bookings Booking[]
+    notificationLogs NotificationLog[]
+
+  @@index([status], map: "idx_users_status")
+  @@map("users")
+}
+
+model Role {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String   @unique @db.VarChar(50)
+  type       String   @db.VarChar(30)
+  user_count Int      @default(0)
+  created_at DateTime @default(now())
+   userRoles UserRole[]
+   rolePermissions RolePermission[]
+
+  @@index([type], map: "idx_roles_type")
+}
+
+model UserRole {
+  userId     String   @map("user_id") @db.Uuid
+  roleId     String   @map("role_id") @db.Uuid
+  assignedAt DateTime @default(dbgenerated("CURRENT_TIMESTAMP")) @map("assigned_at") @db.Timestamp(6)
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model Permission {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code     String @unique @db.VarChar(80)
+  name     String @db.VarChar(120)
+  category String @db.VarChar(60)
+    rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+
+model RolePermission {
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+
+ role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Location {
+ id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ name     String   @db.VarChar(120)
+ address  String   @db.VarChar(255)
+ city     String   @db.VarChar(100)
+  state    String   @db.VarChar(100)
+  zipCode String   @map("zip_code") @db.VarChar(20) 
+  phone   String?   @db.VarChar(30) 
+  email   String?   @db.VarChar(255)
+  openingHours String? @map("opening_hours") @db.VarChar(255)
+  isActive Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(dbgenerated("CURRENT_TIMESTAMP")) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime @default(dbgenerated("CURRENT_TIMESTAMP")) @map("updated_at") @db.Timestamp(6)
+
+  cars Car[]
+  bookingsAsPickup Booking[] @relation("pickup")
+  bookingsAsReturn Booking[] @relation("return")
+
+ @@unique([name, city, state])
+  @@index([isActive], map: "idx_locations_active")
+  @@index([city, state], map: "idx_locations_city_state")
+  @@map("locations")
+}
+
+
+model CarCategory {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @unique @db.VarChar(60)
+  description String?  
+  vehicles    Int      @default(0)
+  isActive    Boolean  @default(true) @map("is_active")
+  updatedAt   DateTime @default(dbgenerated("CURRENT_TIMESTAMP")) @map("last_updated") @db.Timestamp(6)
+
+cars Car[]
+
+  @@index([name], map: "idx_categories_name")
+  @@map("car_categories")
+}
+
+
+enum CarStatus {
+  available
+  rented
+  maintenance
+  @@map("car_status")
+}
+
+model Car {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String   @db.VarChar(120)
+  categoryId     String?  @map("category_id") @db.Uuid
+  year           Int      @db.SmallInt
+  seats          Int      @db.SmallInt
+  fuelType       String?  @map("fuel_type") @db.VarChar(40)
+  transmission   String   @db.VarChar(40)
+  pricePerDay    Decimal  @map("price_per_day") @db.Decimal(10, 2)
+  status         CarStatus @default(available)
+  isAvailable    Boolean  @default(true) @map("is_available")
+  imageUrl       String?  @map("image_url")
+  description    String?
+  homeLocationId String?  @map("home_location_id") @db.Uuid
+  createdAt      DateTime @default(dbgenerated("CURRENT_TIMESTAMP")) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime @default(dbgenerated("CURRENT_TIMESTAMP")) @map("updated_at") @db.Timestamp(6)
+
+  bookings Booking[]
+
+  category CarCategory? @relation(fields: [categoryId], references: [id])
+  homeLocation Location? @relation(fields: [homeLocationId], references: [id])
+  
+
+  @@index([status], map: "idx_cars_status")
+  @@index([categoryId], map: "idx_cars_category")
+  @@index([homeLocationId], map: "idx_cars_home_location")
+  @@index([pricePerDay], map: "idx_cars_price")
+  @@map("cars")
+}
+
+
+enum BookingStatus {
+  pending
+  confirmed
+  approved
+  rejected
+  cancelled
+  completed
+}
+
+model Booking {
+  id                 String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingCode        String        @unique @map("booking_code") @db.VarChar(40)
+  userId             String        @map("user_id") @db.Uuid
+  carId              String        @map("car_id") @db.Uuid
+  pickupLocationId   String?       @map("pickup_location_id") @db.Uuid
+  returnLocationId   String?       @map("return_location_id") @db.Uuid
+  pickupAt           DateTime      @map("pickup_at") @db.Timestamp(6)
+  returnAt           DateTime      @map("return_at") @db.Timestamp(6)
+  status             BookingStatus
+  totalAmount        Decimal       @map("total_amount") @db.Decimal(10, 2)
+  bookedAt           DateTime      @default(dbgenerated("CURRENT_TIMESTAMP")) @map("booked_at") @db.Timestamp(6)
+  carNameSnapshot    String?       @map("car_name_snapshot") @db.VarChar(120)
+  carTypeSnapshot    String?       @map("car_type_snapshot") @db.VarChar(60)
+  carYearSnapshot    Int?          @map("car_year_snapshot") @db.SmallInt
+  carImageSnapshot   String?       @map("car_image_snapshot")
+
+   payments Payment[]
+   notificationLogs NotificationLog[]
+
+  user User @relation(fields: [userId], references: [id])
+  car  Car @relation(fields: [carId], references: [id])
+  pickupLocation Location? @relation("pickup", fields: [pickupLocationId], references: [id])
+  returnLocation Location? @relation("return", fields: [returnLocationId], references: [id])
+
+  @@index([userId, bookedAt], map: "idx_bookings_user_time")
+  @@index([carId, pickupAt, returnAt], map: "idx_bookings_car_dates")
+  @@index([status], map: "idx_bookings_status")
+  @@map("bookings")
+}
+
+enum PaymentMethod {
+  credit_card
+  mobile_money
+  cash
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  refunded
+  failed
+}
+
+model Payment {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingId     String        @map("booking_id") @db.Uuid
+  invoiceNumber String        @unique @map("invoice_number") @db.VarChar(40)
+  transactionId String?       @unique @map("transaction_id") @db.VarChar(80)
+  amount        Decimal       @db.Decimal(10, 2)
+  tax           Decimal       @default(0) @db.Decimal(10, 2)
+  fees          Decimal       @default(0) @db.Decimal(10, 2)
+  method        PaymentMethod
+  status        PaymentStatus
+  paidAt        DateTime?     @map("paid_at") @db.Timestamp(6)
+  refundReason  String?       @map("refund_reason")
+  createdAt     DateTime      @default(dbgenerated("CURRENT_TIMESTAMP")) @map("created_at") @db.Timestamp(6)
+
+booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId], map: "idx_payments_booking")
+  @@index([status], map: "idx_payments_status")
+  @@index([paidAt], map: "idx_payments_paid_at")
+  @@map("payments")
+}
+
+
+enum NotificationTemplateType {
+  email
+  sms
+}
+
+model NotificationTemplate {
+  id            String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String                   @db.VarChar(120)
+  type          NotificationTemplateType
+  trigger_event String                   @db.VarChar(80)
+  subject       String?                  @db.VarChar(255)
+  content       String
+  enabled       Boolean                  @default(true)
+  created_at    DateTime                 @default(now()) @db.Timestamp(6)
+  updated_at    DateTime                 @default(now()) @db.Timestamp(6)
+
+  notificationLogs NotificationLog[]
+
+  @@map("notification_templates")
+}
+
+
+enum NotificationLogStatus {
+  sent
+  failed
+  pending
+}
+
+model NotificationLog {
+  id            String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  template_id   String?                  @db.Uuid
+  user_id       String?                  @db.Uuid
+  booking_id    String?                  @db.Uuid
+  type          NotificationTemplateType
+  recipient     String                   @db.VarChar(255)
+  subject       String?                  @db.VarChar(255)
+  status        NotificationLogStatus
+  sent_at       DateTime                 @default(now()) @db.Timestamp(6)
+  error_message String?
+
+  notificationTemplate NotificationTemplate? @relation(fields: [template_id], references: [id]) 
+  user User? @relation(fields: [user_id], references: [id])
+  booking Booking? @relation(fields: [booking_id], references: [id])
+
+  @@index([status], map: "idx_notif_logs_status")
+  @@index([sent_at], map: "idx_notif_logs_sent_at")
+  @@map("notification_logs")
+}
+
+
+model NotificationChannelSettings {
+  id          String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  channel     NotificationTemplateType @unique
+  provider    String                   @db.VarChar(80)
+  config_json Json                     @default("{}")
+  from_name   String?                  @db.VarChar(120)
+  from_email  String?                  @db.VarChar(255)
+  from_number String?                  @db.VarChar(30)
+  is_active   Boolean                  @default(true)
+  updated_at  DateTime                 @default(now()) @db.Timestamp(6)
+
+  @@map("notification_channel_settings")
+}
+

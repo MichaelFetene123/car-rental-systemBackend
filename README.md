@@ -25,6 +25,135 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## User API Architecture
+
+User endpoints in this project:
+
+1. `POST /users` create user
+2. `GET /users` list users
+3. `GET /users/:id` get user by id
+4. `PATCH /users/:id` update user
+5. `DELETE /users/:id` delete user
+
+```mermaid
+flowchart LR
+  C[Client / Frontend]
+  UC[UsersController]
+  US[UsersService]
+  PS[PrismaService]
+  DB[(PostgreSQL table: users)]
+
+  C -->|POST /users| UC
+  C -->|GET /users| UC
+  C -->|GET /users/:id| UC
+  C -->|PATCH /users/:id| UC
+  C -->|DELETE /users/:id| UC
+
+  UC -->|create/findAll/findOne/update/remove| US
+  US -->|user.create/findMany/findUnique/update/delete| PS
+  PS --> DB
+```
+
+### POST /users
+
+```mermaid
+sequenceDiagram
+  participant Client
+  participant Controller as UsersController
+  participant Service as UsersService
+  participant Prisma as PrismaService
+  participant DB as PostgreSQL(users)
+
+  Client->>Controller: POST /users { full_name, email, phone }
+  Controller->>Service: create(dto)
+  Service->>Prisma: user.create({ data: dto })
+  Prisma->>DB: INSERT INTO users ...
+  DB-->>Prisma: created row
+  Prisma-->>Service: User
+  Service-->>Controller: User
+  Controller-->>Client: 201 Created
+```
+
+### GET /users
+
+```mermaid
+sequenceDiagram
+  participant Client
+  participant Controller as UsersController
+  participant Service as UsersService
+  participant Prisma as PrismaService
+  participant DB as PostgreSQL(users)
+
+  Client->>Controller: GET /users
+  Controller->>Service: findAll()
+  Service->>Prisma: user.findMany()
+  Prisma->>DB: SELECT * FROM users
+  DB-->>Prisma: rows
+  Prisma-->>Service: User[]
+  Service-->>Controller: User[]
+  Controller-->>Client: 200 OK
+```
+
+### GET /users/:id
+
+```mermaid
+sequenceDiagram
+  participant Client
+  participant Controller as UsersController
+  participant Service as UsersService
+  participant Prisma as PrismaService
+  participant DB as PostgreSQL(users)
+
+  Client->>Controller: GET /users/:id
+  Controller->>Service: findOne(id)
+  Service->>Prisma: user.findUnique({ where: { id } })
+  Prisma->>DB: SELECT ... WHERE id=?
+  DB-->>Prisma: row or null
+  Prisma-->>Service: User | null
+  Service-->>Controller: User or NotFound
+  Controller-->>Client: 200 OK or 404 Not Found
+```
+
+### PATCH /users/:id
+
+```mermaid
+sequenceDiagram
+  participant Client
+  participant Controller as UsersController
+  participant Service as UsersService
+  participant Prisma as PrismaService
+  participant DB as PostgreSQL(users)
+
+  Client->>Controller: PATCH /users/:id { fields }
+  Controller->>Service: update(id, dto)
+  Service->>Prisma: user.update({ where: { id }, data: dto })
+  Prisma->>DB: UPDATE users SET ...
+  DB-->>Prisma: updated row
+  Prisma-->>Service: User
+  Service-->>Controller: User
+  Controller-->>Client: 200 OK
+```
+
+### DELETE /users/:id
+
+```mermaid
+sequenceDiagram
+  participant Client
+  participant Controller as UsersController
+  participant Service as UsersService
+  participant Prisma as PrismaService
+  participant DB as PostgreSQL(users)
+
+  Client->>Controller: DELETE /users/:id
+  Controller->>Service: remove(id)
+  Service->>Prisma: user.delete({ where: { id } })
+  Prisma->>DB: DELETE FROM users WHERE id=?
+  DB-->>Prisma: deleted row
+  Prisma-->>Service: User
+  Service-->>Controller: confirmation
+  Controller-->>Client: 200 OK or 204 No Content
+```
+
 ## Project setup
 
 ```bash
