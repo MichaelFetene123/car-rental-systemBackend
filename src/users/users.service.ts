@@ -1,5 +1,5 @@
-import { All, Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/prisma.service';
+import {Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma.service';
 import type {
   UserCreateInput,
   UserModel,
@@ -10,18 +10,9 @@ import type {
 export class UsersService {
   constructor(private prismaService: PrismaService) {}
 
-  async findUserByEmail(
-    where: UserWhereUniqueInput,
-  ): Promise<UserModel | null> {
-    return this.prismaService.user.findUnique({ where });
-  }
-
-  async CreateUser(data: UserCreateInput) {
-    return this.prismaService.user.create({ data });
-  }
-
-  // TEMPORARY FOR TESTING
-  async AllUsers() {
-    return this.prismaService.user.findMany();
+  async createUser(data: UserCreateInput){
+    return this.prismaService.user.create({
+      data,
+    });
   }
 }

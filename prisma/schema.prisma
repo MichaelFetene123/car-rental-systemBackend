@@ -6,6 +6,7 @@
 
 generator client {
   provider = "prisma-client"
+  moduleFormat = "cjs"
   output   = "../src/generated/prisma"
 }
 
@@ -33,6 +34,7 @@ model User {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   full_name      String   @db.VarChar(120)
   email          String   @unique @db.VarChar(255)
+  password       String   @db.VarChar(255)
   phone          String?  @db.VarChar(30)
   status         String   @default("active") @db.VarChar(20)
   total_bookings Int?      @default(0)
