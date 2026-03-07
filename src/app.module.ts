@@ -1,14 +1,20 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { ConfigModule } from '@nestjs/config';
+import { AppService } from './app.service.js';
 import { UsersModule } from './users/users.module';
-import { PrismaService } from './prisma.service';
-import { UsersService } from './users/users.service';
+import { APP_FILTER } from '@nestjs/core';
+import { HttpExceptionFilter } from './filter/http-exception.filter';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), UsersModule],
+  imports: [ConfigModule.forRoot(), UsersModule],
   controllers: [AppController],
-  providers: [AppService, PrismaService, UsersService],
+  providers: [
+    {
+      provide: APP_FILTER,
+      useClass: HttpExceptionFilter,
+    },
+    AppService,
+  ],
 })
 export class AppModule {}

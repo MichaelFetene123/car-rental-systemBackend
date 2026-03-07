@@ -101,8 +101,8 @@ model Location {
  address  String   @db.VarChar(255)
  city     String   @db.VarChar(100)
   state    String   @db.VarChar(100)
-  zipCode String   @map("zip_code") @db.VarChar(20) 
-  phone   String?   @db.VarChar(30) 
+  zipCode String   @map("zip_code") @db.VarChar(20)
+  phone   String?   @db.VarChar(30)
   email   String?   @db.VarChar(255)
   openingHours String? @map("opening_hours") @db.VarChar(255)
   isActive Boolean  @default(true) @map("is_active")
@@ -123,7 +123,7 @@ model Location {
 model CarCategory {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String   @unique @db.VarChar(60)
-  description String?  
+  description String?
   vehicles    Int      @default(0)
   isActive    Boolean  @default(true) @map("is_active")
   updatedAt   DateTime @default(dbgenerated("CURRENT_TIMESTAMP")) @map("last_updated") @db.Timestamp(6)
@@ -163,7 +163,7 @@ model Car {
 
   category CarCategory? @relation(fields: [categoryId], references: [id])
   homeLocation Location? @relation(fields: [homeLocationId], references: [id])
-  
+
 
   @@index([status], map: "idx_cars_status")
   @@index([categoryId], map: "idx_cars_category")
@@ -289,7 +289,7 @@ model NotificationLog {
   sent_at       DateTime                 @default(now()) @db.Timestamp(6)
   error_message String?
 
-  notificationTemplate NotificationTemplate? @relation(fields: [template_id], references: [id]) 
+  notificationTemplate NotificationTemplate? @relation(fields: [template_id], references: [id])
   user User? @relation(fields: [user_id], references: [id])
   booking Booking? @relation(fields: [booking_id], references: [id])
 
@@ -312,4 +312,3 @@ model NotificationChannelSettings {
 
   @@map("notification_channel_settings")
 }
-
