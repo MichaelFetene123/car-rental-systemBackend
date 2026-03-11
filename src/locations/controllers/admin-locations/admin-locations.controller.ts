@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  ParseBoolPipe,
 } from '@nestjs/common';
 
 import { LocationsService } from '../../locations.service';
@@ -54,7 +55,7 @@ export class AdminLocationsController {
   @Roles(Role.Admin) // Only admin can toggle location status
   toggleLocationStatus(
     @Param('id') id: string,
-    @Body('isActive') isActive: boolean,
+    @Body('isActive', ParseBoolPipe) isActive: boolean,
   ) {
     return this.locationsService.toggleStatus(id, isActive);
   }

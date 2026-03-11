@@ -38,6 +38,7 @@ export class UserResponseDto {
   total_bookings: number | null;
   created_at: Date;
   updated_at: Date;
+  roles?: string[]; // array of role names
 }
 
 export const publicUserSelect = {
@@ -49,4 +50,11 @@ export const publicUserSelect = {
   total_bookings: true,
   created_at: true,
   updated_at: true,
+  userRoles: {
+    select: {
+      role: {
+        select: { name: true }, // return only role names
+},
+    },
+  },
 };

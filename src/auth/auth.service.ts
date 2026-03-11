@@ -41,7 +41,16 @@ export class AuthService {
     if (!user || !(await bcrypt.compare(unhashedPassword, user.password))) {
       throw null;
     }
-    const payload = { sub: user.id, email: user.email };
+
+    // Extract roles as string array
+    const roles = user.userRoles.map((ur) => ur.role.name);
+
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      roles, // multiple roles supported
+    };
+
     return {
       access_token: await this.jwtService.signAsync(payload),
     };

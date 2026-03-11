@@ -5,6 +5,7 @@ import {
   UserResponseDto,
   publicUserSelect,
 } from './dto/createUser.dto';
+import { Role } from 'src/auth/enums/role.enum';
 
 @Injectable()
 export class UsersService {
@@ -17,6 +18,13 @@ export class UsersService {
         email: createUserDto.email,
         password: createUserDto.password,
         phone: createUserDto.phone,
+        userRoles: {
+          create: {
+            role: {
+              connect: { name: 'user' }, // assign default 'user' role
+            },
+          },
+        },
       },
       select: publicUserSelect,
     });
@@ -24,9 +32,37 @@ export class UsersService {
   }
 
   async findUserByEmail(email: string) {
-    const userbyEmail = await this.prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { email },
+      include: {
+        userRoles: {
+          include: {
+            role: true,
+          },
+        },
+      },
     });
-    return userbyEmail;
+
+    return user;
+  }
+
+  async assignRoles(userId: string, roles: Role[]) {
+    // Remove old roles
+    await this.prisma.userRole.deleteMany({
+      where: { userId },
+    });
+
+    // Get Role IDs from names
+    const roleRecords = await this.prisma.role.findMany({
+      where: { name: { in: roles } },
+    });
+
+    // Create userRoles
+    await this.prisma.userRole.createMany({
+      data: roleRecords.map((r) => ({ userId, roleId: r.id })),
+      skipDuplicates: true,
+    });
+
+    return { message: 'Roles updated successfully' };
   }
 }

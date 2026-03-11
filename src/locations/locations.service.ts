@@ -51,7 +51,7 @@ export class LocationsService {
     }
     if (state) {
       where.state = {
-        contains: city,
+        contains: state,
         mode: 'insensitive',
       };
     }
