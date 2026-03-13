@@ -9,14 +9,12 @@ export class LocationsController {
 
   @Get()
   @Public() // Allow public access to this endpoint
-  getLocations(@Query() query:LocationQueryDto) {
+  getLocations(@Query() query: LocationQueryDto) {
     return this.locationsService.getLocations(query);
   }
 
   @Get(':id')
-  getLocationById(@Param('id') id:string){
-    return this.locationsService.getLocationById(id)
+  getLocationById(@Param('id') id: string) {
+    return this.locationsService.getLocationById(id);
   }
-
-
 }
