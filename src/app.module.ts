@@ -7,9 +7,12 @@ import { AuthModule } from './auth/auth.module';
 import { APP_FILTER } from '@nestjs/core';
 import { HttpExceptionFilter } from './filter/http-exception.filter';
 import { LocationsModule } from './locations/locations.module';
+import { CarsModule } from './cars/cars.module';
+import { CarCategoriesModule } from './car-categories/car-categories.module';
+import { CarsModule } from './cars/cars.module';
 
 @Module({
-  imports: [ConfigModule.forRoot(), UsersModule, AuthModule, LocationsModule],
+  imports: [ConfigModule.forRoot(), UsersModule, AuthModule, LocationsModule, CarsModule, CarCategoriesModule],
   controllers: [AppController],
   providers: [
     {
