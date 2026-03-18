@@ -1,6 +1,14 @@
-import {IsString, IsNumber, IsOptional, IsEnum, IsUUID } from "class-validator"
-import { CarStatus } from "src/generated/prisma/enums";
-
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsEnum,
+  IsUUID,
+  Min,
+  Max,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { CarStatus } from 'src/generated/prisma/enums';
 
 export class CreateCarDto {
   @IsString()
@@ -10,10 +18,16 @@ export class CreateCarDto {
   @IsUUID()
   categoryId?: string;
 
+  @Type(() => Number)
   @IsNumber()
+  @Min(1900)
+  @Max(new Date().getFullYear() + 1)
   year: number;
 
+  @Type(() => Number)
   @IsNumber()
+  @Min(1)
+  @Max(20)
   seats: number;
 
   @IsOptional()
@@ -23,6 +37,7 @@ export class CreateCarDto {
   @IsString()
   transmission: string;
 
+  @Type(() => Number)
   @IsNumber()
   pricePerDay: number;
 
@@ -39,6 +54,6 @@ export class CreateCarDto {
   description?: string;
 
   @IsOptional()
-  @IsString()
-  homeLocationId?: string
+  @IsUUID()
+  homeLocationId?: string;
 }

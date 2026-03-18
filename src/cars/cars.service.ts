@@ -1,39 +1,26 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from 'src/prisma.service';
-import { CreateCarDto } from './dto/createCar.dto';
-import { Prisma } from 'src/generated/prisma/client';
-
-// Rest of your code...
 
 @Injectable()
 export class CarsService {
   constructor(private prisma: PrismaService) {}
 
-  async createCar(createCarDto: CreateCarDto) {
-    const createdCar = await this.prisma.car.create({
-      data: {
-        name: createCarDto.name,
-        year: createCarDto.year,
-        seats: createCarDto.seats,
-        transmission: createCarDto.transmission,
-        pricePerDay: new Prisma.Decimal(createCarDto.pricePerDay),
-        status: createCarDto.status ?? 'available',
-
-        ...(createCarDto.categoryId && { categoryId: createCarDto.categoryId }),
-        ...(createCarDto.fuelType && { fuelType: createCarDto.fuelType }),
-        ...(createCarDto.imageUrl && { imageUrl: createCarDto.imageUrl }),
-        ...(createCarDto.description && {
-          description: createCarDto.description,
-        }),
-        ...(createCarDto.homeLocationId && {
-          homeLocationId: createCarDto.homeLocationId,
-        }),
-      },
-      include: {
-        category: true,
-        homeLocation: true,
-      },
+  async getAllCars() {
+    return this.prisma.car.findMany({
+      where: { status: 'available' },
+      include: { category: true, homeLocation: true },
+      orderBy: { createdAt: 'desc' },
     });
-    return createdCar;
+  }
+
+  async getCarById(id: string) {
+    const car = await this.prisma.car.findUnique({
+      where: { id },
+      include: { category: true, homeLocation: true },
+    });
+
+    if (!car) throw new HttpException('Car not found', HttpStatus.NOT_FOUND);
+
+    return car;
   }
 }

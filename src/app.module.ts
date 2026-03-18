@@ -9,7 +9,6 @@ import { HttpExceptionFilter } from './filter/http-exception.filter';
 import { LocationsModule } from './locations/locations.module';
 import { CarsModule } from './cars/cars.module';
 import { CarCategoriesModule } from './car-categories/car-categories.module';
-import { CarsModule } from './cars/cars.module';
 
 @Module({
   imports: [ConfigModule.forRoot(), UsersModule, AuthModule, LocationsModule, CarsModule, CarCategoriesModule],

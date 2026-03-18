@@ -160,7 +160,6 @@ model Car {
   transmission   String   @db.VarChar(40)
   pricePerDay    Decimal  @map("price_per_day") @db.Decimal(10, 2)
   status         CarStatus @default(available)
-  isAvailable    Boolean  @default(true) @map("is_available")
   imageUrl       String?  @map("image_url")
   description    String?
   homeLocationId String?  @map("home_location_id") @db.Uuid
