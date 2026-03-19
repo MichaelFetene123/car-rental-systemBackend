@@ -16,4 +16,11 @@ export class CarCategoriesService {
       },
     });
   }
+
+  async getCategoryById(id: string) {
+    return this.prisma.carCategory.findUnique({
+      where: { id },
+      select: { id: true, name: true },
+    });
+  }
 }

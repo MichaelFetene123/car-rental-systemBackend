@@ -13,7 +13,7 @@ import { LocationsService } from '../../locations.service';
 import { CreateLocationDto } from '../../dto/create-location.dto';
 import { UpdateLocationDto } from '../../dto/update-location.dto';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { Role } from 'src/auth/enums/role.enum';
+import { Role } from 'src/common/enums/role.enum';
 
 @Controller('admin/locations')
 export class AdminLocationsController {

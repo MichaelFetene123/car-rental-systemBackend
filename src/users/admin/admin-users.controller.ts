@@ -1,8 +1,16 @@
 // admin/users.controller.ts
-import { Controller, Patch, Param, Body, Get, Post, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Patch,
+  Param,
+  Body,
+  Get,
+  Post,
+  Delete,
+} from '@nestjs/common';
 import { UsersService } from '../users.service';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { Role } from 'src/auth/enums/role.enum';
+import { Role } from 'src/common/enums/role.enum';
 import { CreateUserDto } from '../dto/createUser.dto';
 import { UpdateUserDto } from '../dto/updateUser.dto';
 import { AdminUsersService } from './admin-users.service';

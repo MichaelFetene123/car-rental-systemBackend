@@ -12,7 +12,7 @@ import { AdminCarsService } from './admin-cars.service';
 import { CreateCarDto } from '../dto/createCar.dto';
 import { UpdateCarDto } from '../dto/updateCar.dto';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { Role } from 'src/auth/enums/role.enum';
+import { Role } from 'src/common/enums/role.enum';
 
 @Controller('admin/cars')
 export class AdminCarsController {
