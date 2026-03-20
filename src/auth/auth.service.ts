@@ -1,12 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { UsersService } from 'src/users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import {
-  CreateUserDto,
-  LoginUserDto,
-  UserResponseDto,
-} from 'src/users/dto/createUser.dto';
+import { CreateUserDto, UserResponseDto } from 'src/users/dto/createUser.dto';
 
 const SALT_ROUNDS = 10;
 
@@ -26,29 +22,46 @@ export class AuthService {
       createUserDto.password,
       SALT_ROUNDS,
     );
-    const user = await this.usersService.createUser({
+
+    return this.usersService.createUser({
       ...createUserDto,
       password: hashedPassword,
     });
-    return user;
   }
 
-  async login(
-    email: string,
-    unhashedPassword: string,
-  ): Promise<AuthResponse | null> {
-    const user = await this.usersService.findUserByEmail(email);
-    if (!user || !(await bcrypt.compare(unhashedPassword, user.password))) {
-      throw null;
+  async login(email: string, unhashedPassword: string): Promise<AuthResponse> {
+    // 🔥 IMPORTANT: must include roles + permissions
+    const user = await this.usersService.findUserByEmailWithRoles(email);
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Extract roles as string array
-    const roles = user.userRoles.map((ur) => ur.role.name);
+    const isPasswordValid = await bcrypt.compare(
+      unhashedPassword,
+      user.password,
+    );
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // ✅ Extract roles (USE RoleType, NOT name)
+    const roles = user.userRoles.map((ur) => ur.role.type);
+
+    // ✅ Extract permissions (flatten)
+    const permissions = user.userRoles.flatMap((ur) =>
+      ur.role.rolePermissions.map((rp) => rp.permission.code),
+    );
+
+    // Optional: remove duplicates
+    const uniquePermissions = [...new Set(permissions)];
 
     const payload = {
       sub: user.id,
       email: user.email,
-      roles, // multiple roles supported
+      roles,
+      permissions: uniquePermissions,
     };
 
     return {

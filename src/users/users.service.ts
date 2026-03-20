@@ -40,10 +40,24 @@ export class UsersService {
     return user;
   }
 
-  async findUserByEmail(email: string) {
+  async findUserByEmailWithRoles(email: string) {
     return this.prisma.user.findUnique({
       where: { email },
-      include: { userRoles: { include: { role: true } } },
+      include: {
+        userRoles: {
+          include: {
+            role: {
+              include: {
+                rolePermissions: {
+                  include: {
+                    permission: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
   }
 
