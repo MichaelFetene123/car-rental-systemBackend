@@ -3,6 +3,7 @@ import { UsersService } from 'src/users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto, UserResponseDto } from 'src/users/dto/createUser.dto';
+import { Role } from 'src/common/enums/role.enum';
 
 const SALT_ROUNDS = 10;
 
@@ -29,39 +30,27 @@ export class AuthService {
     });
   }
 
-  async login(email: string, unhashedPassword: string): Promise<AuthResponse> {
-    // 🔥 IMPORTANT: must include roles + permissions
+
+  async login(email: string, password: string) {
     const user = await this.usersService.findUserByEmailWithRoles(email);
 
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
+    if (!user) throw new UnauthorizedException();
 
-    const isPasswordValid = await bcrypt.compare(
-      unhashedPassword,
-      user.password,
-    );
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) throw new UnauthorizedException();
 
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
+    // ✅ map DB role.type → Role enum
+    const roles: Role[] = user.userRoles.map((ur) => ur.role.type as Role);
 
-    // ✅ Extract roles (USE RoleType, NOT name)
-    const roles = user.userRoles.map((ur) => ur.role.type);
-
-    // ✅ Extract permissions (flatten)
     const permissions = user.userRoles.flatMap((ur) =>
       ur.role.rolePermissions.map((rp) => rp.permission.code),
     );
-
-    // Optional: remove duplicates
-    const uniquePermissions = [...new Set(permissions)];
 
     const payload = {
       sub: user.id,
       email: user.email,
       roles,
-      permissions: uniquePermissions,
+      permissions: [...new Set(permissions)],
     };
 
     return {

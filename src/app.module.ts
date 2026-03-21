@@ -9,9 +9,24 @@ import { HttpExceptionFilter } from './filter/http-exception.filter';
 import { LocationsModule } from './locations/locations.module';
 import { CarsModule } from './cars/cars.module';
 import { CarCategoriesModule } from './car-categories/car-categories.module';
+import { RolesService } from './role-and-permission/roles/roles.service';
+import { RolesController } from './role-and-permission/roles/roles.controller';
+import { RolesModule } from './role-and-permission/roles/roles.module';
+import { PermissionsModule } from './role-and-permission/permissions/permissions.module';
+import { UserRolesModule } from './user-roles/user-roles.module';
 
 @Module({
-  imports: [ConfigModule.forRoot(), UsersModule, AuthModule, LocationsModule, CarsModule, CarCategoriesModule],
+  imports: [
+    ConfigModule.forRoot(),
+    UsersModule,
+    AuthModule,
+    LocationsModule,
+    CarsModule,
+    CarCategoriesModule,
+    RolesModule,
+    PermissionsModule,
+    UserRolesModule,
+  ],
   controllers: [AppController],
   providers: [
     {

@@ -20,8 +20,4 @@ export enum PermissionType {
   MANAGE_ROLES = 'manage_roles',
 
   MANAGE_NOTIFICATIONS = 'manage_notifications',
-
-  MANAGE_INTEGRATIONS = 'manage_integrations',
-
-  MANAGE_API = 'manage_api',
 }
