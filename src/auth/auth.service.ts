@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto, UserResponseDto } from 'src/users/dto/createUser.dto';
 import { Role } from 'src/common/enums/role.enum';
+import { PrismaService } from 'src/prisma.service';
 
 const SALT_ROUNDS = 10;
 
@@ -16,6 +17,7 @@ export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
+    private prisma: PrismaService,
   ) {}
 
   async register(createUserDto: CreateUserDto): Promise<UserResponseDto> {
@@ -29,7 +31,6 @@ export class AuthService {
       password: hashedPassword,
     });
   }
-
 
   async login(email: string, password: string) {
     const user = await this.usersService.findUserByEmailWithRoles(email);
@@ -51,6 +52,44 @@ export class AuthService {
       email: user.email,
       roles,
       permissions: [...new Set(permissions)],
+    };
+
+    return {
+      access_token: await this.jwtService.signAsync(payload),
+    };
+  }
+
+  
+  async generateUserToken(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        userRoles: {
+          include: {
+            role: {
+              include: {
+                rolePermissions: {
+                  include: { permission: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) throw new UnauthorizedException('User not found');
+
+    const roles = user.userRoles.map((ur) => ur.role.type);
+
+    const permissions = user.userRoles.flatMap((ur) =>
+      ur.role.rolePermissions.map((rp) => rp.permission.code),
+    );
+
+    const payload = {
+      sub: user.id,
+      roles,
+      permissions,
     };
 
     return {

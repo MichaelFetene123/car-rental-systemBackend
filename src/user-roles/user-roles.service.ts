@@ -8,10 +8,14 @@ import { PrismaService } from 'src/prisma.service';
 import { AssignRoleDto } from './dto/assign-role.dto';
 import { RemoveRoleDto } from './dto/remove-role.dto';
 import { Role } from 'src/common/enums/role.enum';
+import { AuthService } from 'src/auth/auth.service';
 
 @Injectable()
 export class UserRolesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private authService: AuthService,
+  ) {}
 
   // ✅ Assign Role
   async assignRole(dto: AssignRoleDto) {
@@ -26,16 +30,18 @@ export class UserRolesService {
     if (!role) throw new NotFoundException('Role not found');
 
     try {
-      return await this.prisma.userRole.create({
+      await this.prisma.userRole.create({
         data: {
           userId: dto.userId,
           roleId: dto.roleId,
         },
       });
-    } catch (err) {
-      // Prisma unique constraint violation (composite PK)
+    } catch {
       throw new ConflictException('User already has this role');
     }
+
+    // ✅ IMPORTANT: return new token
+    return this.authService.generateUserToken(dto.userId);
   }
 
   // ✅ Remove Role
@@ -45,12 +51,11 @@ export class UserRolesService {
     });
     if (!role) throw new NotFoundException('Role not found');
 
-    // 🚨 Prevent removing Admin role (optional but recommended)
     if (role.type === Role.Admin) {
       throw new ForbiddenException('Cannot remove admin role');
     }
 
-    return this.prisma.userRole.delete({
+    await this.prisma.userRole.delete({
       where: {
         userId_roleId: {
           userId: dto.userId,
@@ -58,6 +63,9 @@ export class UserRolesService {
         },
       },
     });
+
+    // ✅ return refreshed token
+    return this.authService.generateUserToken(dto.userId);
   }
 
   // ✅ Get all roles of a user
