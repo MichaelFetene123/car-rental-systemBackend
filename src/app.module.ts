@@ -14,6 +14,7 @@ import { RolesController } from './role-and-permission/roles/roles.controller';
 import { RolesModule } from './role-and-permission/roles/roles.module';
 import { PermissionsModule } from './role-and-permission/permissions/permissions.module';
 import { UserRolesModule } from './user-roles/user-roles.module';
+import { BookingsModule } from './bookings/bookings.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { UserRolesModule } from './user-roles/user-roles.module';
     RolesModule,
     PermissionsModule,
     UserRolesModule,
+    BookingsModule,
   ],
   controllers: [AppController],
   providers: [

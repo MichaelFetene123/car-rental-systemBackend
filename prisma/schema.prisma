@@ -180,7 +180,6 @@ model Car {
 
 enum BookingStatus {
   pending
-  confirmed
   approved
   rejected
   cancelled
