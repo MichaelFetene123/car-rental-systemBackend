@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma.service';
+import type { BookingStatus } from 'src/generated/prisma/client';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-status.dto';
@@ -13,26 +14,16 @@ import { UpdateBookingStatusDto } from './dto/update-status.dto';
 export class BookingsService {
   constructor(private prisma: PrismaService) {}
 
+  // ===============================
   // ✅ CREATE BOOKING (USER)
+  // ===============================
   async createBooking(userId: string, dto: CreateBookingDto) {
     const pickup = new Date(dto.pickupAt);
     const returnDate = new Date(dto.returnAt);
 
+    // ✅ VALIDATION (CORRECT)
     if (pickup >= returnDate) {
-      throw new BadRequestException('Invalid booking dates');
-    }
-
-    // 🚨 Prevent double booking
-    const conflict = await this.prisma.booking.findFirst({
-      where: {
-        carId: dto.carId,
-        status: { in: ['pending', 'approved'] },
-        AND: [{ pickupAt: { lte: returnDate } }, { returnAt: { gte: pickup } }],
-      },
-    });
-
-    if (conflict) {
-      throw new BadRequestException('Car already booked for selected time');
+      throw new BadRequestException('Return time must be after pickup time');
     }
 
     const car = await this.prisma.car.findUnique({
@@ -41,6 +32,25 @@ export class BookingsService {
 
     if (!car) throw new NotFoundException('Car not found');
 
+    // 🚨 CORRECT OVERLAP CHECK (FIXED)
+    const conflict = await this.prisma.booking.findFirst({
+      where: {
+        carId: dto.carId,
+        status: { in: ['pending', 'approved'] },
+        AND: [
+          { pickupAt: { lt: returnDate } }, // FIXED
+          { returnAt: { gt: pickup } }, // FIXED
+        ],
+      },
+    });
+
+    if (conflict) {
+      throw new BadRequestException(
+        'Car is already booked for this time range',
+      );
+    }
+
+    // 💰 PRICE CALCULATION
     const days =
       (returnDate.getTime() - pickup.getTime()) / (1000 * 60 * 60 * 24);
 
@@ -65,7 +75,9 @@ export class BookingsService {
     });
   }
 
-  // ✅ USER BOOKINGS
+  // ===============================
+  // ✅ GET USER BOOKINGS
+  // ===============================
   async getMyBookings(userId: string) {
     return this.prisma.booking.findMany({
       where: { userId },
@@ -77,7 +89,9 @@ export class BookingsService {
     });
   }
 
+  // ===============================
   // ✅ UPDATE BOOKING (USER)
+  // ===============================
   async updateBooking(userId: string, dto: UpdateBookingDto) {
     const booking = await this.prisma.booking.findUnique({
       where: { id: dto.bookingId },
@@ -89,7 +103,7 @@ export class BookingsService {
       throw new ForbiddenException();
     }
 
-    // 🚨 only pending allowed
+    // 🚨 ONLY pending can be updated
     if (booking.status !== 'pending') {
       throw new BadRequestException('Only pending bookings can be modified');
     }
@@ -97,23 +111,29 @@ export class BookingsService {
     const pickup = new Date(dto.pickupAt);
     const returnDate = new Date(dto.returnAt);
 
-    // 🚨 conflict check
+    if (pickup >= returnDate) {
+      throw new BadRequestException('Return time must be after pickup time');
+    }
+
+    // 🚨 FIXED OVERLAP CHECK
     const conflict = await this.prisma.booking.findFirst({
       where: {
         carId: booking.carId,
         id: { not: booking.id },
         status: { in: ['pending', 'approved'] },
-        AND: [{ pickupAt: { lte: returnDate } }, { returnAt: { gte: pickup } }],
+        AND: [{ pickupAt: { lt: returnDate } }, { returnAt: { gt: pickup } }],
       },
     });
 
     if (conflict) {
-      throw new BadRequestException('Time slot unavailable');
+      throw new BadRequestException('Selected time slot is unavailable');
     }
 
     const car = await this.prisma.car.findUnique({
       where: { id: booking.carId },
     });
+
+    if (!car) throw new NotFoundException('Car not found');
 
     const days =
       (returnDate.getTime() - pickup.getTime()) / (1000 * 60 * 60 * 24);
@@ -132,7 +152,9 @@ export class BookingsService {
     });
   }
 
+  // ===============================
   // ✅ DELETE BOOKING (USER)
+  // ===============================
   async deleteBooking(userId: string, bookingId: string) {
     const booking = await this.prisma.booking.findUnique({
       where: { id: bookingId },
@@ -145,7 +167,7 @@ export class BookingsService {
     }
 
     if (booking.status !== 'pending') {
-      throw new BadRequestException('Cannot delete processed booking');
+      throw new BadRequestException('Only pending bookings can be deleted');
     }
 
     return this.prisma.booking.delete({
@@ -153,7 +175,9 @@ export class BookingsService {
     });
   }
 
+  // ===============================
   // ✅ ADMIN STATUS UPDATE
+  // ===============================
   async updateBookingStatus(dto: UpdateBookingStatusDto) {
     const booking = await this.prisma.booking.findUnique({
       where: { id: dto.bookingId },
@@ -161,7 +185,7 @@ export class BookingsService {
 
     if (!booking) throw new NotFoundException();
 
-    const allowed = {
+    const allowedTransitions: Record<BookingStatus, BookingStatus[]> = {
       pending: ['approved', 'rejected', 'cancelled'],
       approved: ['completed', 'cancelled'],
       rejected: [],
@@ -169,17 +193,20 @@ export class BookingsService {
       completed: [],
     };
 
-    if (!allowed[booking.status].includes(dto.status)) {
-      throw new BadRequestException('Invalid transition');
+    if (!allowedTransitions[booking.status].includes(dto.status)) {
+      throw new BadRequestException(
+        `Invalid transition from ${booking.status} to ${dto.status}`,
+      );
     }
 
+    // ✅ TRANSACTION (CRITICAL)
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.booking.update({
         where: { id: booking.id },
         data: { status: dto.status },
       });
 
-      // sync car
+      // 🚗 CAR STATUS SYNC
       if (dto.status === 'approved') {
         await tx.car.update({
           where: { id: booking.carId },
