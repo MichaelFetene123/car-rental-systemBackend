@@ -7,7 +7,7 @@ export class PermissionGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredPermission = this.reflector.getAllAndOverride<string>(
+    const requiredPermission = this.reflector.getAllAndOverride<string | string[]>(
       PERMISSION_KEY,
       [context.getHandler(), context.getClass()],
     );
@@ -21,6 +21,12 @@ export class PermissionGuard implements CanActivate {
     // No user or permissions → deny
     if (!user?.permissions) return false;
 
-    return user.permissions.includes(requiredPermission);
+    const requiredPermissions = Array.isArray(requiredPermission)
+      ? requiredPermission
+      : [requiredPermission];
+
+    return requiredPermissions.every((permission) =>
+      user.permissions.includes(permission),
+    );
   }
 }

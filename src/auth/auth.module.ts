@@ -31,5 +31,6 @@ import { PermissionGuard } from './guard/permission.guard';
     { provide: APP_GUARD, useClass: PermissionGuard },
   ],
   controllers: [AuthController],
+  exports: [AuthService],
 })
 export class AuthModule {}

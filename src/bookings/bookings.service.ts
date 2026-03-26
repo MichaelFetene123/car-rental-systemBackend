@@ -4,8 +4,9 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from 'src/prisma.service';
-import type { BookingStatus } from 'src/generated/prisma/client';
+import type { BookingStatus, Prisma } from 'src/generated/prisma/client';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-status.dto';
@@ -18,60 +19,56 @@ export class BookingsService {
   // ✅ CREATE BOOKING (USER)
   // ===============================
   async createBooking(userId: string, dto: CreateBookingDto) {
-    const pickup = new Date(dto.pickupAt);
-    const returnDate = new Date(dto.returnAt);
+    const pickup = this.parseDateOrThrow(dto.pickupAt, 'pickupAt');
+    const returnDate = this.parseDateOrThrow(dto.returnAt, 'returnAt');
+    this.validateBookingWindow(pickup, returnDate);
 
-    // ✅ VALIDATION (CORRECT)
-    if (pickup >= returnDate) {
-      throw new BadRequestException('Return time must be after pickup time');
-    }
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockCarBookingWindow(tx, dto.carId);
 
-    const car = await this.prisma.car.findUnique({
-      where: { id: dto.carId },
-    });
+      const car = await tx.car.findUnique({
+        where: { id: dto.carId },
+      });
 
-    if (!car) throw new NotFoundException('Car not found');
+      if (!car) throw new NotFoundException('Car not found');
 
-    // 🚨 CORRECT OVERLAP CHECK (FIXED)
-    const conflict = await this.prisma.booking.findFirst({
-      where: {
-        carId: dto.carId,
-        status: { in: ['pending', 'approved'] },
-        AND: [
-          { pickupAt: { lt: returnDate } }, // FIXED
-          { returnAt: { gt: pickup } }, // FIXED
-        ],
-      },
-    });
+      const conflict = await tx.booking.findFirst({
+        where: {
+          carId: dto.carId,
+          status: { in: ['pending', 'approved'] },
+          AND: [{ pickupAt: { lt: returnDate } }, { returnAt: { gt: pickup } }],
+        },
+      });
 
-    if (conflict) {
-      throw new BadRequestException(
-        'Car is already booked for this time range',
+      if (conflict) {
+        throw new BadRequestException(
+          'Car is already booked for this time range',
+        );
+      }
+
+      const totalAmount = this.calculateTotalAmount(
+        car.pricePerDay,
+        pickup,
+        returnDate,
       );
-    }
 
-    // 💰 PRICE CALCULATION
-    const days =
-      (returnDate.getTime() - pickup.getTime()) / (1000 * 60 * 60 * 24);
-
-    const totalAmount = Number(car.pricePerDay) * days;
-
-    return this.prisma.booking.create({
-      data: {
-        bookingCode: `BK-${Date.now()}`,
-        userId,
-        carId: dto.carId,
-        pickupLocationId: dto.pickupLocationId,
-        returnLocationId: dto.returnLocationId,
-        pickupAt: pickup,
-        returnAt: returnDate,
-        status: 'pending',
-        totalAmount,
-        carNameSnapshot: car.name,
-        carTypeSnapshot: car.transmission,
-        carYearSnapshot: car.year,
-        carImageSnapshot: car.imageUrl,
-      },
+      return tx.booking.create({
+        data: {
+          bookingCode: this.generateBookingCode(),
+          userId,
+          carId: dto.carId,
+          pickupLocationId: dto.pickupLocationId,
+          returnLocationId: dto.returnLocationId,
+          pickupAt: pickup,
+          returnAt: returnDate,
+          status: 'pending',
+          totalAmount,
+          carNameSnapshot: car.name,
+          carTypeSnapshot: car.transmission,
+          carYearSnapshot: car.year,
+          carImageSnapshot: car.imageUrl,
+        },
+      });
     });
   }
 
@@ -92,64 +89,115 @@ export class BookingsService {
   // ===============================
   // ✅ UPDATE BOOKING (USER)
   // ===============================
+
+  //   ✅ 7. SIMPLE HUMAN VERSION
+
+  // This code is basically saying:
+  // “Check if this car is already booked during this time.
+  // If yes → reject.”
+
+  // ✅ 8. WHY THIS IS CRITICAL
+
+  // Without this:
+  // Two users can book the same car at the same time ❌
+  // Your system becomes unreliable ❌
+
   async updateBooking(userId: string, dto: UpdateBookingDto) {
-    const booking = await this.prisma.booking.findUnique({
-      where: { id: dto.bookingId },
+    const pickup = this.parseDateOrThrow(dto.pickupAt, 'pickupAt');
+    const returnDate = this.parseDateOrThrow(dto.returnAt, 'returnAt');
+    this.validateBookingWindow(pickup, returnDate);
+
+    return this.prisma.$transaction(async (tx) => {
+      const booking = await tx.booking.findUnique({
+        where: { id: dto.bookingId },
+      });
+
+      if (!booking) throw new NotFoundException('Booking not found');
+
+      if (booking.userId !== userId) {
+        throw new ForbiddenException();
+      }
+
+      if (booking.status !== 'pending') {
+        throw new BadRequestException('Only pending bookings can be modified');
+      }
+
+      await this.lockCarBookingWindow(tx, booking.carId);
+
+      const conflict = await tx.booking.findFirst({
+        where: {
+          carId: booking.carId,
+          id: { not: booking.id },
+          status: { in: ['pending', 'approved'] },
+          AND: [{ pickupAt: { lt: returnDate } }, { returnAt: { gt: pickup } }],
+        },
+      });
+
+      if (conflict) {
+        throw new BadRequestException('Selected time slot is unavailable');
+      }
+
+      const car = await tx.car.findUnique({
+        where: { id: booking.carId },
+      });
+
+      if (!car) throw new NotFoundException('Car not found');
+
+      const totalAmount = this.calculateTotalAmount(
+        car.pricePerDay,
+        pickup,
+        returnDate,
+      );
+
+      return tx.booking.update({
+        where: { id: booking.id },
+        data: {
+          pickupAt: pickup,
+          returnAt: returnDate,
+          pickupLocationId: dto.pickupLocationId,
+          returnLocationId: dto.returnLocationId,
+          totalAmount,
+        },
+      });
     });
+  }
 
-    if (!booking) throw new NotFoundException('Booking not found');
+  private parseDateOrThrow(value: string, fieldName: 'pickupAt' | 'returnAt') {
+    const date = new Date(value);
 
-    if (booking.userId !== userId) {
-      throw new ForbiddenException();
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException(`${fieldName} must be a valid datetime`);
     }
 
-    // 🚨 ONLY pending can be updated
-    if (booking.status !== 'pending') {
-      throw new BadRequestException('Only pending bookings can be modified');
-    }
+    return date;
+  }
 
-    const pickup = new Date(dto.pickupAt);
-    const returnDate = new Date(dto.returnAt);
-
+  private validateBookingWindow(pickup: Date, returnDate: Date) {
     if (pickup >= returnDate) {
       throw new BadRequestException('Return time must be after pickup time');
     }
+  }
 
-    // 🚨 FIXED OVERLAP CHECK
-    const conflict = await this.prisma.booking.findFirst({
-      where: {
-        carId: booking.carId,
-        id: { not: booking.id },
-        status: { in: ['pending', 'approved'] },
-        AND: [{ pickupAt: { lt: returnDate } }, { returnAt: { gt: pickup } }],
-      },
-    });
+  private calculateTotalAmount(
+    pricePerDay: Prisma.Decimal,
+    pickup: Date,
+    returnDate: Date,
+  ) {
+    const dayInMs = 1000 * 60 * 60 * 24;
+    const durationMs = returnDate.getTime() - pickup.getTime();
+    const days = Math.ceil(durationMs / dayInMs);
+    return Number(pricePerDay) * days;
+  }
 
-    if (conflict) {
-      throw new BadRequestException('Selected time slot is unavailable');
-    }
+  private generateBookingCode() {
+    return `BK-${Date.now()}-${randomUUID().slice(0, 8)}`;
+  }
 
-    const car = await this.prisma.car.findUnique({
-      where: { id: booking.carId },
-    });
-
-    if (!car) throw new NotFoundException('Car not found');
-
-    const days =
-      (returnDate.getTime() - pickup.getTime()) / (1000 * 60 * 60 * 24);
-
-    const totalAmount = Number(car.pricePerDay) * days;
-
-    return this.prisma.booking.update({
-      where: { id: booking.id },
-      data: {
-        pickupAt: pickup,
-        returnAt: returnDate,
-        pickupLocationId: dto.pickupLocationId,
-        returnLocationId: dto.returnLocationId,
-        totalAmount,
-      },
-    });
+  private async lockCarBookingWindow(
+    tx: Prisma.TransactionClient,
+    carId: string,
+  ) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${carId}))`;
   }
 
   // ===============================
@@ -193,7 +241,9 @@ export class BookingsService {
       completed: [],
     };
 
-    if (!allowedTransitions[booking.status].includes(dto.status)) {
+    const allowedNext = allowedTransitions[booking.status] || [];
+
+    if (!allowedNext.includes(dto.status)) {
       throw new BadRequestException(
         `Invalid transition from ${booking.status} to ${dto.status}`,
       );
