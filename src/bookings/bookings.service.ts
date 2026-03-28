@@ -3,6 +3,8 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from 'src/prisma.service';
@@ -30,7 +32,7 @@ export class BookingsService {
         where: { id: dto.carId },
       });
 
-      if (!car) throw new NotFoundException('Car not found');
+      if (!car) throw new HttpException('Car not found',HttpStatus.NOT_FOUND);
 
       const conflict = await tx.booking.findFirst({
         where: {
@@ -119,7 +121,10 @@ export class BookingsService {
       }
 
       if (booking.status !== 'pending') {
-        throw new BadRequestException('Only pending bookings can be modified');
+          throw new HttpException(
+            'Only pending bookings can be modified',
+            HttpStatus.BAD_REQUEST,
+          );
       }
 
       await this.lockCarBookingWindow(tx, booking.carId);
@@ -166,7 +171,11 @@ export class BookingsService {
     const date = new Date(value);
 
     if (Number.isNaN(date.getTime())) {
-      throw new BadRequestException(`${fieldName} must be a valid datetime`);
+        throw new HttpException(
+          `${fieldName} must be a valid datetime`,
+          HttpStatus.BAD_REQUEST,
+        );
+
     }
 
     return date;
@@ -174,7 +183,10 @@ export class BookingsService {
 
   private validateBookingWindow(pickup: Date, returnDate: Date) {
     if (pickup >= returnDate) {
-      throw new BadRequestException('Return time must be after pickup time');
+      throw new HttpException(
+        'Return time must be after pickup time',
+        HttpStatus.BAD_REQUEST,
+      );
     }
   }
 
@@ -215,7 +227,7 @@ export class BookingsService {
     }
 
     if (booking.status !== 'pending') {
-      throw new BadRequestException('Only pending bookings can be deleted');
+      throw new HttpException('Only pending bookings can be deleted',HttpStatus.BAD_REQUEST)
     }
 
     return this.prisma.booking.delete({
