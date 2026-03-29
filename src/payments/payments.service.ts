@@ -122,4 +122,30 @@ export class PaymentsService {
       return updated;
     });
   }
+
+  async getStats(){
+    const [completed, pending , refunded, count] = await Promise.all([
+
+      this.prisma.payment.aggregate({
+        _sum: { amount: true},
+        where: { status: 'completed'}
+      }),
+      this.prisma.payment.aggregate({
+        _sum: {amount : true},
+        where: {status: 'pending'}
+      }),
+      this.prisma.payment.aggregate({
+        _sum: {amount: true},
+        where: {status: 'refunded'}
+      }),
+      this.prisma.payment.count()
+    ])
+
+    return {
+      totalRevenue: completed._sum.amount ?? 0,
+      pendingAmount: pending._sum.amount ?? 0,
+      refundedAmount: refunded._sum.amount ?? 0,
+      totalTransactions: count,
+    };
+  }
 }

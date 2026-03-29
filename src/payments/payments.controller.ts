@@ -39,4 +39,11 @@ export class PaymentsController {
   refund(@Body() dto: RefundDto) {
     return this.service.refund(dto);
   }
+
+  @Get('stats')
+  @Roles(Role.Admin)
+  @RequirePermission('manage_payments')
+  stats() {
+    return this.service.getStats();
+  }
 }
