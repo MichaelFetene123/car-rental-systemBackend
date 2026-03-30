@@ -46,4 +46,11 @@ export class PaymentsController {
   stats() {
     return this.service.getStats();
   }
+
+  @Get()
+  @Roles(Role.Admin)
+  @RequirePermission('manage_payments')
+  getAll(@Query() query: QueryPaymentDto) {
+    return this.service.getPayments(query);
+  }
 }

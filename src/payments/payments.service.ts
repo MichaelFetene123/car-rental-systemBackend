@@ -123,23 +123,22 @@ export class PaymentsService {
     });
   }
 
-  async getStats(){
-    const [completed, pending , refunded, count] = await Promise.all([
-
+  async getStats() {
+    const [completed, pending, refunded, count] = await Promise.all([
       this.prisma.payment.aggregate({
-        _sum: { amount: true},
-        where: { status: 'completed'}
+        _sum: { amount: true },
+        where: { status: 'completed' },
       }),
       this.prisma.payment.aggregate({
-        _sum: {amount : true},
-        where: {status: 'pending'}
+        _sum: { amount: true },
+        where: { status: 'pending' },
       }),
       this.prisma.payment.aggregate({
-        _sum: {amount: true},
-        where: {status: 'refunded'}
+        _sum: { amount: true },
+        where: { status: 'refunded' },
       }),
-      this.prisma.payment.count()
-    ])
+      this.prisma.payment.count(),
+    ]);
 
     return {
       totalRevenue: completed._sum.amount ?? 0,
@@ -147,5 +146,34 @@ export class PaymentsService {
       refundedAmount: refunded._sum.amount ?? 0,
       totalTransactions: count,
     };
+  }
+  // ===============================
+  // GET PAYMENTS (FILTER + SEARCH)
+  // ===============================
+  async getPayments(query: QueryPaymentDto) {
+    return this.prisma.payment.findMany({
+      where: {
+        status: query.status,
+        method: query.method,
+        booking: query.search
+          ? {
+              user: {
+                full_name: {
+                  contains: query.search,
+                  mode: 'insensitive',
+                },
+              },
+            }
+          : undefined,
+      },
+      include: {
+        booking: {
+          include: {
+            user: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 }
