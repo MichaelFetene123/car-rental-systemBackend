@@ -17,6 +17,7 @@ import { UserRolesModule } from './user-roles/user-roles.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { PaymentsModuleTsModule } from './payments.module.ts/payments.module.ts.module';
 import { PaymentsModule } from './payments/payments.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { PaymentsModule } from './payments/payments.module';
     BookingsModule,
     PaymentsModuleTsModule,
     PaymentsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [
