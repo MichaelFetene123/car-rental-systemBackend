@@ -18,6 +18,7 @@ import { BookingsModule } from './bookings/bookings.module';
 import { PaymentsModuleTsModule } from './payments.module.ts/payments.module.ts.module';
 import { PaymentsModule } from './payments/payments.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     PaymentsModuleTsModule,
     PaymentsModule,
     NotificationsModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [
