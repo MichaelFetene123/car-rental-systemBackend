@@ -15,10 +15,10 @@ import { RolesModule } from './role-and-permission/roles/roles.module';
 import { PermissionsModule } from './role-and-permission/permissions/permissions.module';
 import { UserRolesModule } from './user-roles/user-roles.module';
 import { BookingsModule } from './bookings/bookings.module';
-import { PaymentsModuleTsModule } from './payments.module.ts/payments.module.ts.module';
 import { PaymentsModule } from './payments/payments.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -32,10 +32,10 @@ import { DashboardModule } from './dashboard/dashboard.module';
     PermissionsModule,
     UserRolesModule,
     BookingsModule,
-    PaymentsModuleTsModule,
     PaymentsModule,
     NotificationsModule,
     DashboardModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [
