@@ -7,26 +7,21 @@ import {
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
+import { PrismaService } from 'src/prisma.service';
 
 import { IS_PUBLIC_KEY } from '../decorator/public.decorator';
 import { jwtConstants } from '../constants';
-
-type JwtPayload = {
-  sub: string;
-  email: string;
-  roles: string[];
-  permissions: string[];
-};
+import { JwtPayload } from '../types/jwt-payload.type';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
     private jwtService: JwtService,
     private reflector: Reflector,
+    private prisma: PrismaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    // ✅ Allow public routes
     if (this.isPublic(context)) return true;
 
     const request = context.switchToHttp().getRequest<Request>();
@@ -34,17 +29,16 @@ export class AuthGuard implements CanActivate {
     try {
       const payload = await this.verifyToken(request);
 
-      // ✅ Validate payload structure (CRITICAL)
       this.validatePayload(payload);
+      await this.validateTokenVersion(payload);
 
-      // ✅ Attach user to request (typed)
       (request as any).user = payload;
 
       return true;
     } catch (error) {
-      throw new UnauthorizedException(
-        error?.message || 'Invalid or expired token',
-      );
+      const message =
+        error instanceof Error ? error.message : 'Invalid or expired token';
+      throw new UnauthorizedException(message);
     }
   }
 
@@ -68,8 +62,7 @@ export class AuthGuard implements CanActivate {
     });
   }
 
-  // 🔥 CRITICAL VALIDATION
-  private validatePayload(payload: any) {
+  private validatePayload(payload: JwtPayload) {
     if (!payload?.sub) {
       throw new UnauthorizedException('Invalid token: missing user id');
     }
@@ -80,6 +73,25 @@ export class AuthGuard implements CanActivate {
 
     if (!Array.isArray(payload.permissions)) {
       throw new UnauthorizedException('Invalid token: permissions missing');
+    }
+
+    if (typeof payload.tokenVersion !== 'number') {
+      throw new UnauthorizedException('Invalid token: token version missing');
+    }
+  }
+
+  private async validateTokenVersion(payload: JwtPayload) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { tokenVersion: true },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (user.tokenVersion !== payload.tokenVersion) {
+      throw new UnauthorizedException('Token has been revoked');
     }
   }
 }

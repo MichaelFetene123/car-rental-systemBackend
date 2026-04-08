@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { CreateUserDto, UserResponseDto } from 'src/users/dto/createUser.dto';
 import { Role } from 'src/common/enums/role.enum';
 import { PrismaService } from 'src/prisma.service';
+import { JwtPayload } from './types/jwt-payload.type';
 
 const SALT_ROUNDS = 10;
 
@@ -47,11 +48,12 @@ export class AuthService {
       ur.role.rolePermissions.map((rp) => rp.permission.code),
     );
 
-    const payload = {
+    const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
       roles,
       permissions: [...new Set(permissions)],
+      tokenVersion: user.tokenVersion,
     };
 
     return {
@@ -59,7 +61,6 @@ export class AuthService {
     };
   }
 
-  
   async generateUserToken(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -86,16 +87,33 @@ export class AuthService {
       ur.role.rolePermissions.map((rp) => rp.permission.code),
     );
 
-    const payload = {
+    const payload: JwtPayload = {
       sub: user.id,
+      email: user.email,
       roles,
       permissions,
+      tokenVersion: user.tokenVersion,
     };
 
     return {
       access_token: await this.jwtService.signAsync(payload),
     };
+  }
 
+  async logout(userId: string) {
+    const result = await this.prisma.user.updateMany({
+      where: { id: userId },
+      data: {
+        tokenVersion: {
+          increment: 1,
+        },
+      },
+    });
 
+    if (result.count === 0) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    return { message: 'Logout successful' };
   }
 }

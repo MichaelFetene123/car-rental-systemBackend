@@ -10,6 +10,7 @@ import {
 import { AuthService } from './auth.service';
 import { Public } from './decorator/public.decorator';
 import { CreateUserDto, LoginUserDto } from 'src/users/dto/createUser.dto';
+import { JwtPayload } from './types/jwt-payload.type';
 
 @Controller('auth')
 export class AuthController {
@@ -35,5 +36,10 @@ export class AuthController {
       throw new HttpException('Invalid credentials', HttpStatus.UNAUTHORIZED);
     }
     return token;
+  }
+
+  @Post('logout')
+  async logout(@Req() req: { user: JwtPayload }) {
+    return this.authService.logout(req.user.sub);
   }
 }
