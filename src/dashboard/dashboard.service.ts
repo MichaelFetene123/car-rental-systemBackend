@@ -5,8 +5,8 @@ import {
   BookingStatus,
   CarStatus,
   PaymentStatus,
-} from 'src/generated/prisma/client';
-import { PrismaService } from 'src/prisma.service';
+} from '../generated/prisma/client';
+import { PrismaService } from '../prisma.service';
 import { DashboardResponseDto } from './dto/dashboard-response.dto';
 
 @Injectable()

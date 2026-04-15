@@ -10,8 +10,8 @@ import {
 import { AdminCarCategoriesService } from './admin-car-categories.service';
 import { CreateCarCategoryDto } from '../dto/create-car-category.dto';
 import { UpdateCarCategoryDto } from '../dto/update-car-category.dto';
-import { Roles } from 'src/auth/decorator/roles.decorator';
-import { Role } from 'src/common/enums/role.enum';
+import { Roles } from '../../auth/decorator/roles.decorator';
+import { Role } from '../../common/enums/role.enum';
 
 @Controller('admin/car-categories')
 export class AdminCarCategoriesController {

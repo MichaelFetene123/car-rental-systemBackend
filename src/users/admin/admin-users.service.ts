@@ -1,5 +1,5 @@
-import { Role } from 'src/common/enums/role.enum';
-import { PrismaService } from 'src/prisma.service';
+import { Role } from '../../common/enums/role.enum';
+import { PrismaService } from '../../prisma.service';
 import { UpdateUserDto } from '../dto/updateUser.dto';
 import {
   CreateUserDto,

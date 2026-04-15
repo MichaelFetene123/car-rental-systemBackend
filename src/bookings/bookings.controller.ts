@@ -9,9 +9,9 @@ import {
   Req,
 } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
-import { Roles } from 'src/auth/decorator/roles.decorator';
-import { RequirePermission } from 'src/auth/decorator/permission.decorator';
-import { Role } from 'src/common/enums/role.enum';
+import { Roles } from '../auth/decorator/roles.decorator';
+import { RequirePermission } from '../auth/decorator/permission.decorator';
+import { Role } from '../common/enums/role.enum';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-status.dto';

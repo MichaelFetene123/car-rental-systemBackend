@@ -4,11 +4,11 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from '../prisma.service';
 import { AssignRoleDto } from './dto/assign-role.dto';
 import { RemoveRoleDto } from './dto/remove-role.dto';
-import { Role } from 'src/common/enums/role.enum';
-import { AuthService } from 'src/auth/auth.service';
+import { Role } from '../common/enums/role.enum';
+import { AuthService } from '../auth/auth.service';
 
 @Injectable()
 export class UserRolesService {

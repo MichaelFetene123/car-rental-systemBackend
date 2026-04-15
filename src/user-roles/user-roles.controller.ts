@@ -2,9 +2,9 @@ import { Controller, Post, Delete, Get, Body, Param } from '@nestjs/common';
 import { UserRolesService } from './user-roles.service';
 import { AssignRoleDto } from './dto/assign-role.dto';
 import { RemoveRoleDto } from './dto/remove-role.dto';
-import { Roles } from 'src/auth/decorator/roles.decorator';
-import { RequirePermission } from 'src/auth/decorator/permission.decorator';
-import { Role } from 'src/common/enums/role.enum';
+import { Roles } from '../auth/decorator/roles.decorator';
+import { RequirePermission } from '../auth/decorator/permission.decorator';
+import { Role } from '../common/enums/role.enum';
 
 @Controller('user-roles')
 export class UserRolesController {

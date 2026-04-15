@@ -5,8 +5,8 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
-import { PrismaService } from 'src/prisma.service';
-import { Prisma } from 'src/generated/prisma/client';
+import { PrismaService } from '../prisma.service';
+import { Prisma } from '../generated/prisma/client';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { RefundDto } from './dto/refund.dto';
 import { QueryPaymentDto } from './dto/query-paymnet.dto';

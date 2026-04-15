@@ -8,9 +8,9 @@ import {
   Param,
 } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
-import { Roles } from 'src/auth/decorator/roles.decorator';
-import { RequirePermission } from 'src/auth/decorator/permission.decorator';
-import { Role } from 'src/common/enums/role.enum';
+import { Roles } from '../auth/decorator/roles.decorator';
+import { RequirePermission } from '../auth/decorator/permission.decorator';
+import { Role } from '../common/enums/role.enum';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { RefundDto } from './dto/refund.dto';
 import { QueryPaymentDto } from './dto/query-paymnet.dto';

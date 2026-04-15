@@ -1,8 +1,8 @@
 // reports.controller.ts
 import { Controller, Get, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
-import { Roles } from 'src/auth/decorator/roles.decorator';
-import { Role } from 'src/common/enums/role.enum';
+import { Roles } from '../auth/decorator/roles.decorator';
+import { Role } from '../common/enums/role.enum';
 import { ReportsExportService } from './reports-export/reports.export.service';
 import { ReportsService } from './reports.service';
 import { QueryReportDto } from './dto/query-report.dto';

@@ -7,8 +7,8 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { PrismaService } from 'src/prisma.service';
-import type { BookingStatus, Prisma } from 'src/generated/prisma/client';
+import { PrismaService } from '../prisma.service';
+import type { BookingStatus, Prisma } from '../generated/prisma/client';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-status.dto';

@@ -9,10 +9,10 @@ import {
 } from '@nestjs/common';
 import { AdminCarsService } from './admin-cars.service';
 
-import { Roles } from 'src/auth/decorator/roles.decorator';
-import { RequirePermission } from 'src/auth/decorator/permission.decorator';
+import { Roles } from '../../auth/decorator/roles.decorator';
+import { RequirePermission } from '../../auth/decorator/permission.decorator';
 
-import { Role } from 'src/common/enums/role.enum';
+import { Role } from '../../common/enums/role.enum';
 
 @Controller('admin/cars')
 export class AdminCarsController {

@@ -1,7 +1,7 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { LocationsService } from '../locations.service';
 import { LocationQueryDto } from '../dto/location-query.dto';
-import { Public } from 'src/auth/decorator/public.decorator';
+import { Public } from '../../auth/decorator/public.decorator';
 
 @Controller('locations')
 export class LocationsController {

@@ -3,7 +3,7 @@ import { UsersService } from './users.service';
 import { AdminUsersController } from './admin/admin-users.controller';
 import { AdminUsersService } from './admin/admin-users.service';
 import { ProfileController } from './profile/profile.controller';
-import { PrismaModule } from 'src/prisma.module';
+import { PrismaModule } from '../prisma.module';
 
 @Module({
   imports: [PrismaModule],

@@ -1,8 +1,8 @@
 import { Controller, Get } from '@nestjs/common';
 import { PermissionsService } from './permissions.service';
-import { Roles } from 'src/auth/decorator/roles.decorator';
-import { RequirePermission } from 'src/auth/decorator/permission.decorator';
-import { Role } from 'src/common/enums/role.enum';
+import { Roles } from '../../auth/decorator/roles.decorator';
+import { RequirePermission } from '../../auth/decorator/permission.decorator';
+import { Role } from '../../common/enums/role.enum';
 
 @Controller('permissions')
 export class PermissionsController {

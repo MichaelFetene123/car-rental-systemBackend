@@ -1,10 +1,10 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { UsersService } from 'src/users/users.service';
+import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { CreateUserDto, UserResponseDto } from 'src/users/dto/createUser.dto';
-import { Role } from 'src/common/enums/role.enum';
-import { PrismaService } from 'src/prisma.service';
+import { CreateUserDto, UserResponseDto } from '../users/dto/createUser.dto';
+import { Role } from '../common/enums/role.enum';
+import { PrismaService } from '../prisma.service';
 import { JwtPayload } from './types/jwt-payload.type';
 
 const SALT_ROUNDS = 10;

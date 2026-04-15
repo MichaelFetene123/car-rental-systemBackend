@@ -3,10 +3,10 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from '../../prisma.service';
 import { CreateRoleDto } from '../dto/createRole.dto';
 import { UpdateRoleDto } from '../dto/updateRole.dto';
-import { Role } from 'src/common/enums/role.enum';
+import { Role } from '../../common/enums/role.enum';
 
 @Injectable()
 export class RolesService {

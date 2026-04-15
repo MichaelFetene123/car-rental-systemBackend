@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
-import { Roles } from 'src/auth/decorator/roles.decorator';
-import { Role } from 'src/common/enums/role.enum';
+import { Roles } from '../auth/decorator/roles.decorator';
+import { Role } from '../common/enums/role.enum';
 import { DashboardService } from './dashboard.service';
 
 @Controller('dashboard')
