@@ -6,6 +6,8 @@ import {
   Delete,
   Param,
   Body,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AdminCarsService } from './admin-cars.service';
 
@@ -13,6 +15,9 @@ import { Roles } from '../../auth/decorator/roles.decorator';
 import { RequirePermission } from '../../auth/decorator/permission.decorator';
 
 import { Role } from '../../common/enums/role.enum';
+
+//  for image upload
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('admin/cars')
 export class AdminCarsController {
@@ -28,15 +33,21 @@ export class AdminCarsController {
   @Post()
   @Roles(Role.Admin)
   @RequirePermission('manage_cars')
-  async create(@Body() dto) {
-    return this.adminCarsService.createCar(dto);
+  @UseInterceptors(FileInterceptor('image')) // Handle 'image' file upload
+  async create(@Body() dto: any, @UploadedFile() file?: Express.Multer.File) {
+    return this.adminCarsService.createCar(dto, file);
   }
 
   @Patch(':id')
   @Roles(Role.Admin)
   @RequirePermission('manage_cars')
-  async update(@Param('id') id: string, @Body() dto) {
-    return this.adminCarsService.updateCar(id, dto);
+  @UseInterceptors(FileInterceptor('image')) // 🔥 important
+  async update(
+    @Param('id') id: string,
+    @Body() dto: any,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.adminCarsService.updateCar(id, dto, file);
   }
 
   @Delete(':id')

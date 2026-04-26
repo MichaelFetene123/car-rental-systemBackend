@@ -47,10 +47,6 @@ export class CreateCarDto {
 
   @IsOptional()
   @IsString()
-  imageUrl?: string;
-
-  @IsOptional()
-  @IsString()
   description?: string;
 
   @IsOptional()

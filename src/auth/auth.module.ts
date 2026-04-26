@@ -18,8 +18,8 @@ import { PermissionGuard } from './guard/permission.guard';
     UsersModule,
     JwtModule.register({
       global: true,
-      secret: jwtConstants.secret,
-      signOptions: { expiresIn: '3600s' },
+      secret: jwtConstants.accessSecret,
+      signOptions: { expiresIn: jwtConstants.accessTokenExpiresIn as any },
     }),
   ],
   providers: [
