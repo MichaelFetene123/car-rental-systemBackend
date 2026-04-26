@@ -80,28 +80,28 @@ export class AuthController {
     };
   }
 
-  @Public()
-  @Post('refresh')
-  async refresh(
-    @Req() req: { headers: { cookie?: string } },
-    @Res({ passthrough: true }) response: Response,
-  ) {
-    const refreshToken = this.extractCookieValue(
-      req.headers.cookie,
-      jwtConstants.refreshCookieName,
-    );
+  // @Public()
+  // @Post('refresh')
+  // async refresh(
+  //   @Req() req: { headers: { cookie?: string } },
+  //   @Res({ passthrough: true }) response: Response,
+  // ) {
+  //   const refreshToken = this.extractCookieValue(
+  //     req.headers.cookie,
+  //     jwtConstants.refreshCookieName,
+  //   );
 
-    if (!refreshToken) {
-      throw new HttpException('Refresh token missing', HttpStatus.UNAUTHORIZED);
-    }
+  //   if (!refreshToken) {
+  //     throw new HttpException('Refresh token missing', HttpStatus.UNAUTHORIZED);
+  //   }
 
-    const tokens = await this.authService.refreshTokens(refreshToken);
-    this.setRefreshCookie(response, tokens.refresh_token);
+  //   const tokens = await this.authService.refreshTokens(refreshToken);
+  //   this.setRefreshCookie(response, tokens.refresh_token);
 
-    return {
-      access_token: tokens.access_token,
-    };
-  }
+  //   return {
+  //     access_token: tokens.access_token,
+  //   };
+  // }
 
   @Post('logout')
   async logout(
