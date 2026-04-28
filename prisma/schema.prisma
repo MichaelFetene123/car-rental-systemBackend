@@ -143,6 +143,7 @@ model Booking {
   status           BookingStatus
   totalAmount      Decimal           @map("total_amount") @db.Decimal(10, 2)
   bookedAt         DateTime          @default(now()) @map("booked_at") @db.Timestamp(6)
+  idempotencyKey   String?           @map("idempotency_key") @db.VarChar(80)
   carNameSnapshot  String?           @map("car_name_snapshot") @db.VarChar(120)
   carTypeSnapshot  String?           @map("car_type_snapshot") @db.VarChar(60)
   carYearSnapshot  Int?              @map("car_year_snapshot") @db.SmallInt
@@ -157,6 +158,7 @@ model Booking {
   @@index([userId, bookedAt], map: "idx_bookings_user_time")
   @@index([carId, pickupAt, returnAt], map: "idx_bookings_car_dates")
   @@index([status], map: "idx_bookings_status")
+  @@unique([userId, idempotencyKey], map: "uq_bookings_user_idempotency")
   @@map("bookings")
 }
 

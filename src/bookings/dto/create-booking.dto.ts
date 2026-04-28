@@ -1,4 +1,4 @@
-import { IsUUID, IsDateString } from 'class-validator';
+import { IsUUID, IsDateString, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateBookingDto {
   @IsUUID()
@@ -15,4 +15,9 @@ export class CreateBookingDto {
 
   @IsDateString()
   returnAt: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  idempotencyKey?: string;
 }

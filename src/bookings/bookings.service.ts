@@ -26,6 +26,19 @@ export class BookingsService {
     this.validateBookingWindow(pickup, returnDate);
 
     return this.prisma.$transaction(async (tx) => {
+      if (dto.idempotencyKey) {
+        const existing = await tx.booking.findFirst({
+          where: {
+            userId,
+            idempotencyKey: dto.idempotencyKey,
+          },
+        });
+
+        if (existing) {
+          return existing;
+        }
+      }
+
       await this.lockCarBookingWindow(tx, dto.carId);
 
       const car = await tx.car.findUnique({
@@ -65,6 +78,7 @@ export class BookingsService {
           returnAt: returnDate,
           status: 'pending',
           totalAmount,
+          idempotencyKey: dto.idempotencyKey ?? null,
           carNameSnapshot: car.name,
           carTypeSnapshot: car.transmission,
           carYearSnapshot: car.year,

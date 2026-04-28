@@ -114,18 +114,6 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token has been revoked');
     }
 
-    const updated = await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        tokenVersion: {
-          increment: 1,
-        },
-      },
-      select: {
-        tokenVersion: true,
-      },
-    });
-
     const roles: Role[] = user.userRoles.map((ur) => ur.role.type as Role);
     const permissions = user.userRoles.flatMap((ur) =>
       ur.role.rolePermissions.map((rp) => rp.permission.code),
@@ -136,7 +124,7 @@ export class AuthService {
       email: user.email,
       roles,
       permissions: [...new Set(permissions)],
-      tokenVersion: updated.tokenVersion,
+      tokenVersion: user.tokenVersion,
     });
   }
 
