@@ -1,10 +1,19 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { json } from 'express';
 import { AppModule } from './app.module';
 
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  app.use(
+    json({
+      verify: (req, _res, buf) => {
+        (req as { rawBody?: string }).rawBody = buf.toString('utf8');
+      },
+    }),
+  );
 
   const configuredOrigins =
     process.env.FRONTEND_URLS ?? process.env.FRONTEND_URL;

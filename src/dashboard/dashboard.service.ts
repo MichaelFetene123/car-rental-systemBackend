@@ -1,6 +1,7 @@
 // dashboard.service.ts
 
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   BookingStatus,
   CarStatus,
@@ -11,7 +12,10 @@ import { DashboardResponseDto } from './dto/dashboard-response.dto';
 
 @Injectable()
 export class DashboardService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
 
   async getDashboardData(): Promise<DashboardResponseDto> {
     const [
@@ -178,9 +182,10 @@ export class DashboardService {
       }),
     ]);
 
+    const currencyCode = this.config.get<string>('CURRENCY_CODE') ?? 'ETB';
     const currencyFormatter = new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: currencyCode,
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
     });

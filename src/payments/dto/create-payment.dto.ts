@@ -1,4 +1,10 @@
-import { IsUUID, IsEnum, IsNumber, IsOptional } from 'class-validator';
+import {
+  IsUUID,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 import { PaymentMethod } from '../../generated/prisma/client';
 
 export class CreatePaymentDto {
@@ -18,4 +24,8 @@ export class CreatePaymentDto {
 
   @IsEnum(PaymentMethod)
   method: PaymentMethod;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
 }

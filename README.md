@@ -225,3 +225,16 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+
+
+Best Practices for Implementing Webhooks
+Always Verify Critical Transaction Data
+Before giving value to a customer based on a webhook notification, always re-query our API to verify the transaction details. This helps confirm that the data returned is consistent with what you’re expecting and has not been compromised.
+
+For example, when you receive a successful payment notification, call the transaction verification endpoint to confirm that the status, amount, currency, tx_ref and mode match the expected value in your system before confirming the customer’s order.
+
+Be Idempotent
+In some cases, the same webhook event may be delivered more than once—usually due to network delays, timeouts, or retries when your server doesn’t respond with a 200 OK. To prevent duplicate actions (such as crediting a customer multiple times), your webhook processing must be idempotent.
+
+This means that handling the same event multiple times should always produce the same outcome. If your system has already processed that event, simply acknowledge it without repeating any business logic.

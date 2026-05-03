@@ -1,56 +1,39 @@
 import {
   Controller,
   Post,
-  Patch,
   Get,
   Body,
   Query,
-  Param,
+  Headers,
+  Req,
 } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
-import { Roles } from '../auth/decorator/roles.decorator';
-import { RequirePermission } from '../auth/decorator/permission.decorator';
-import { Role } from '../common/enums/role.enum';
-import { CreatePaymentDto } from './dto/create-payment.dto';
-import { RefundDto } from './dto/refund.dto';
-import { QueryPaymentDto } from './dto/query-paymnet.dto';
 
 @Controller('payments')
 export class PaymentsController {
-  constructor(private readonly service: PaymentsService) {}
+  constructor(private readonly paymentsService: PaymentsService) {}
 
-  @Post()
-  @Roles(Role.Admin)
-  @RequirePermission('manage_payments')
-  create(@Body() dto: CreatePaymentDto) {
-    return this.service.createPayment(dto);
+  // Accept payment
+  @Post('initialize')
+  initialize(@Body() body: { bookingId: string }, @Req() req: any) {
+    return this.paymentsService.initializePayment(req.user.id, body.bookingId);
   }
 
-  @Patch(':id/complete')
-  @Roles(Role.Admin)
-  @RequirePermission('manage_payments')
-  complete(@Param('id') id: string) {
-    return this.service.completePayment(id);
+  // Verify manually (fallback)
+  @Get('verify')
+  verify(@Query('tx_ref') txRef: string) {
+    return this.paymentsService.verifyPayment(txRef);
   }
 
-  @Post('refund')
-  @Roles(Role.Admin)
-  @RequirePermission('manage_payments')
-  refund(@Body() dto: RefundDto) {
-    return this.service.refund(dto);
+  // Callback (redirect)
+  @Get('callback')
+  callback(@Query() query: any) {
+    return this.paymentsService.handleCallback(query);
   }
 
-  @Get('stats')
-  @Roles(Role.Admin)
-  @RequirePermission('manage_payments')
-  stats() {
-    return this.service.getStats();
-  }
-
-  @Get()
-  @Roles(Role.Admin)
-  @RequirePermission('manage_payments')
-  getAll(@Query() query: QueryPaymentDto) {
-    return this.service.getPayments(query);
+  // Webhook (primary)
+  @Post('webhook')
+  webhook(@Body() body: any, @Headers() headers: any, @Req() req: any) {
+    return this.paymentsService.handleWebhook(body, headers, req.rawBody);
   }
 }
