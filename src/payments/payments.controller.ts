@@ -16,7 +16,9 @@ export class PaymentsController {
   // Accept payment
   @Post('initialize')
   initialize(@Body() body: { bookingId: string }, @Req() req: any) {
-    return this.paymentsService.initializePayment(req.user.id, body.bookingId);
+    const userId = req?.user?.sub;
+    // console.log('[payments] initialize user id:', userId);
+    return this.paymentsService.initializePayment(userId, body.bookingId);
   }
 
   // Verify manually (fallback)
