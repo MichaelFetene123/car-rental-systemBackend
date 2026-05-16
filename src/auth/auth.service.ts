@@ -63,6 +63,7 @@ export class AuthService {
     return this.createAuthTokens({
       sub: user.id,
       email: user.email,
+      full_name: user.full_name,
       roles,
       permissions: [...new Set(permissions)],
       tokenVersion: user.tokenVersion,
@@ -122,6 +123,7 @@ export class AuthService {
     return this.createAuthTokens({
       sub: user.id,
       email: user.email,
+      full_name: user.full_name,
       roles,
       permissions: [...new Set(permissions)],
       tokenVersion: user.tokenVersion,
@@ -176,6 +178,7 @@ export class AuthService {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
+      full_name: user.full_name,
       roles,
       permissions,
       tokenVersion: user.tokenVersion,

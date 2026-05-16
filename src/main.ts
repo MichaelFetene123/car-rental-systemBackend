@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { json } from 'express';
+import { json, static as serveStatic } from 'express';
+import { join } from 'path';
 import { AppModule } from './app.module';
 
 
@@ -29,7 +30,13 @@ async function bootstrap() {
     credentials: true,
   });
 
+  app.use('/uploads', serveStatic(join(process.cwd(), 'uploads')));
+
   app.useGlobalPipes(new ValidationPipe({
+    transform: true,
+    transformOptions: {
+      enableImplicitConversion: true,
+    },
     whitelist: true,
     forbidNonWhitelisted: true,
   }));

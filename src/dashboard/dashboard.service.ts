@@ -60,7 +60,7 @@ export class DashboardService {
 
   private async getActiveRentals(): Promise<number> {
     return this.prisma.booking.count({
-      where: { status: BookingStatus.approved },
+      where: { status: BookingStatus.active },
     });
   }
 

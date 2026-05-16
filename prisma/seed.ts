@@ -190,6 +190,26 @@ async function main() {
       email: 'cmc@carrental.com',
       openingHours: 'Mon-Sat 8:00-20:00',
     },
+    {
+      name: 'Gullele Branch',
+      address: 'Gullele Subcity, Woreda 8',
+      city: 'Addis Ababa',
+      state: 'Addis Ababa',
+      zipCode: '1000',
+      phone: '+251911000004',
+      email: 'gullele@carrental.com',
+      openingHours: 'Mon-Sat 8:00-20:00',
+    },
+    {
+      name: 'Mexico Branch',
+      address: 'mexico square, Woreda 3',
+      city: 'Addis Ababa',
+      state: 'Addis Ababa',
+      zipCode: '1000',
+      phone: '+251911000004',
+      email: 'mexico@carrental.com',
+      openingHours: 'Mon-Sat 8:00-20:00',
+    },
   ];
 
   for (const location of locationsToSeed) {
@@ -244,6 +264,8 @@ async function main() {
   console.log('Car categories seeded successfully');
 
   console.log('Seeding cars...');
+
+  // To create cars, we need to get the IDs of the seeded locations and categories first. We will use upsert for cars as well to avoid duplicates if the seed script is run multiple times.
 
   const [seededLocations, seededCategories] = await Promise.all([
     prisma.location.findMany(),
@@ -400,7 +422,7 @@ async function main() {
     `Cars seeded successfully. Inserted ${carsToInsert.length} cars.`,
   );
 
-// 11111111111111111111111111111111111111111111111111111111111111111111111111111
+  // 11111111111111111111111111111111111111111111111111111111111111111111111111111
 
   const adminEmail = process.env.ADMIN_EMAIL!;
   const adminPassword = process.env.ADMIN_PASSWORD!;
@@ -436,6 +458,62 @@ async function main() {
   } else {
     console.log('Admin user already exists');
   }
+
+  console.log('Seeding expired booking demo data...');
+
+  const adminUser = await prisma.user.findUnique({
+    where: { email: adminEmail },
+  });
+
+  const demoCar = await prisma.car.findFirst({
+    select: { id: true, name: true },
+  });
+
+  if (!adminUser || !demoCar) {
+    console.log('Skipping expired booking demo data (missing user or car).');
+    return;
+  }
+
+  const demoBookingCode = 'CRON-EXPIRE-DEMO';
+  const demoInvoiceNumber = 'INV-CRON-EXPIRE-DEMO';
+
+  const existingDemoBooking = await prisma.booking.findUnique({
+    where: { bookingCode: demoBookingCode },
+  });
+
+  const booking =
+    existingDemoBooking ??
+    (await prisma.booking.create({
+      data: {
+        bookingCode: demoBookingCode,
+        userId: adminUser.id,
+        carId: demoCar.id,
+        pickupAt: new Date(Date.now() + 60 * 60 * 1000),
+        returnAt: new Date(Date.now() + 2 * 60 * 60 * 1000),
+        status: 'pending',
+        expiresAt: new Date(Date.now() - 5 * 60 * 1000),
+        totalAmount: 100,
+        carNameSnapshot: demoCar.name,
+      },
+    }));
+
+  const existingDemoPayment = await prisma.payment.findUnique({
+    where: { invoiceNumber: demoInvoiceNumber },
+  });
+
+  if (!existingDemoPayment) {
+    await prisma.payment.create({
+      data: {
+        bookingId: booking.id,
+        invoiceNumber: demoInvoiceNumber,
+        amount: 100,
+        method: 'cash',
+        status: 'pending',
+      },
+    });
+  }
+
+  console.log('Expired booking demo data seeded.');
 }
 
 main()

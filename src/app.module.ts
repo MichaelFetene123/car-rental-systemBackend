@@ -19,11 +19,13 @@ import { PaymentsModule } from './payments/payments.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportsModule } from './reports/reports.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
     ConfigModule.forRoot(),
     UsersModule,
+    ScheduleModule.forRoot(),
     AuthModule,
     LocationsModule,
     CarsModule,

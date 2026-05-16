@@ -141,19 +141,36 @@ model Booking {
   pickupAt         DateTime          @map("pickup_at") @db.Timestamp(6)
   returnAt         DateTime          @map("return_at") @db.Timestamp(6)
   status           BookingStatus
+  expiresAt        DateTime?         @map("expires_at") @db.Timestamp(6)
+  approvedAt       DateTime?         @map("approved_at") @db.Timestamp(6)
+  activatedAt      DateTime?         @map("activated_at") @db.Timestamp(6)
+  completedAt      DateTime?         @map("completed_at") @db.Timestamp(6)
+  rejectedAt       DateTime?         @map("rejected_at") @db.Timestamp(6)
+  cancelledAt      DateTime?         @map("cancelled_at") @db.Timestamp(6)
+  noShowAt         DateTime?         @map("no_show_at") @db.Timestamp(6)
+  actualReturnedAt DateTime?         @map("actual_returned_at") @db.Timestamp(6)
+  reviewedByUserId String?           @map("reviewed_by_user_id") @db.Uuid
+  reviewNote       String?           @map("review_note")
+  rejectionReason  String?           @map("rejection_reason")
+  cancellationReason String?         @map("cancellation_reason")
+  extraCharges     Decimal           @default(0) @map("extra_charges") @db.Decimal(10, 2)
+  lateFee          Decimal           @default(0) @map("late_fee") @db.Decimal(10, 2)
+  damageNotes      String?           @map("damage_notes")
   totalAmount      Decimal           @map("total_amount") @db.Decimal(10, 2)
   bookedAt         DateTime          @default(now()) @map("booked_at") @db.Timestamp(6)
   idempotencyKey   String?           @map("idempotency_key") @db.VarChar(80)
+  deletedAt        DateTime?         @map("deleted_at") @db.Timestamp(6)
   carNameSnapshot  String?           @map("car_name_snapshot") @db.VarChar(120)
   carTypeSnapshot  String?           @map("car_type_snapshot") @db.VarChar(60)
   carYearSnapshot  Int?              @map("car_year_snapshot") @db.SmallInt
   carImageSnapshot String?           @map("car_image_snapshot")
-  car              Car               @relation(fields: [carId], references: [id])
+  car              Car               @relation(fields: [carId], references: [id], onDelete: Cascade)
   pickupLocation   Location?         @relation("pickup", fields: [pickupLocationId], references: [id])
   returnLocation   Location?         @relation("return", fields: [returnLocationId], references: [id])
   user             User              @relation(fields: [userId], references: [id])
   notificationLogs NotificationLog[]
   payments         Payment[]
+  statusTransitions BookingStatusTransition[]
 
   @@index([userId, bookedAt], map: "idx_bookings_user_time")
   @@index([carId, pickupAt, returnAt], map: "idx_bookings_car_dates")
@@ -170,10 +187,12 @@ model Payment {
   amount        Decimal       @db.Decimal(10, 2)
   tax           Decimal       @default(0) @db.Decimal(10, 2)
   fees          Decimal       @default(0) @db.Decimal(10, 2)
+  refundedAmount Decimal      @default(0) @map("refunded_amount") @db.Decimal(10, 2)
   method        PaymentMethod
   status        PaymentStatus
   paidAt        DateTime?     @map("paid_at") @db.Timestamp(6)
   refundReason  String?       @map("refund_reason")
+  notes         String?       @map("notes")
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamp(6)
   booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
@@ -181,6 +200,22 @@ model Payment {
   @@index([status], map: "idx_payments_status")
   @@index([paidAt], map: "idx_payments_paid_at")
   @@map("payments")
+}
+
+model BookingStatusTransition {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingId       String        @map("booking_id") @db.Uuid
+  fromStatus      BookingStatus? @map("from_status")
+  toStatus        BookingStatus @map("to_status")
+  changedByUserId String?       @map("changed_by_user_id") @db.Uuid
+  reason          String?
+  metadataJson    Json?         @map("metadata_json")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamp(6)
+  booking         Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId, createdAt], map: "idx_booking_status_transitions_booking_time")
+  @@index([toStatus], map: "idx_booking_status_transitions_to_status")
+  @@map("booking_status_transitions")
 }
 
 model NotificationTemplate {
@@ -251,9 +286,12 @@ enum CarStatus {
 enum BookingStatus {
   pending
   approved
+  active
+  completed
   rejected
   cancelled
-  completed
+  no_show
+  expired
 }
 
 enum PaymentMethod {
@@ -266,8 +304,10 @@ enum PaymentMethod {
 enum PaymentStatus {
   pending
   completed
+  partially_refunded
   refunded
   failed
+  expired
 }
 
 enum NotificationTemplateType {
