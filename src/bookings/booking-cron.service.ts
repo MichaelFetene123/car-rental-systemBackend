@@ -1,12 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma.service';
+import { BookingsService } from './bookings.service';
 
 @Injectable()
 export class BookingCronService {
   private readonly logger = new Logger(BookingCronService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly bookingsService: BookingsService,
+  ) {}
 
   @Cron(process.env.BOOKING_EXPIRE_CRON ?? CronExpression.EVERY_MINUTE)
   async expirePendingBookings() {
@@ -84,6 +88,28 @@ export class BookingCronService {
       } catch (error) {
         this.logger.error(`Failed to expire booking ${booking.id}`, error);
       }
+    }
+  }
+
+  @Cron(process.env.BOOKING_REFUND_VERIFY_CRON ?? CronExpression.EVERY_MINUTE)
+  async verifyRefundStatuses() {
+    this.logger.log('Checking pending refund statuses...');
+
+    try {
+      await this.bookingsService.verifyPendingRefunds();
+    } catch (error) {
+      this.logger.error('Failed to verify pending refunds', error);
+    }
+  }
+
+  @Cron(process.env.BOOKING_AUTO_REFUND_CRON ?? CronExpression.EVERY_MINUTE)
+  async processQueuedAutoRefunds() {
+    this.logger.log('Processing queued automatic refunds for rejected bookings...');
+
+    try {
+      await this.bookingsService.processQueuedAutoRefunds();
+    } catch (error) {
+      this.logger.error('Failed to process queued automatic refunds', error);
     }
   }
 }

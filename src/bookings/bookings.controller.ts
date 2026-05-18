@@ -23,6 +23,8 @@ import { AdminRejectBookingDto } from './dto/admin-reject-booking.dto';
 import { AdminReviewQueueDto } from './dto/admin-review-queue.dto';
 import { CancelBookingDto } from './dto/cancel-booking.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { AdminProcessRefundDto } from './dto/admin-process-refund.dto';
+import { AdminRejectBookingBodyDto } from './dto/admin-reject-booking-body.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-status.dto';
 
@@ -79,6 +81,20 @@ export class BookingsController {
     return this.service.deleteCancelledBooking(req.user.sub, id);
   }
 
+  @Delete('admin/:id/rejected')
+  @Roles(Role.Admin)
+  @RequirePermission(['manage_bookings'])
+  deleteRejected(@Req() req: { user: JwtUser }, @Param('id') id: string) {
+    return this.service.deleteRejectedBooking(req.user.sub, id);
+  }
+
+  @Delete('admin/:id/refunded')
+  @Roles(Role.Admin)
+  @RequirePermission(['manage_bookings'])
+  deleteRefunded(@Req() req: { user: JwtUser }, @Param('id') id: string) {
+    return this.service.deleteRefundedBooking(req.user.sub, id);
+  }
+
   @Post(':id/cancel')
   cancel(
     @Req() req: { user: JwtUser },
@@ -107,6 +123,36 @@ export class BookingsController {
   @RequirePermission(['manage_bookings'])
   reject(@Req() req: { user: JwtUser }, @Body() dto: AdminRejectBookingDto) {
     return this.service.rejectBooking(req.user.sub, dto);
+  }
+
+  @Patch('admin/:id/reject')
+  @Roles(Role.Admin)
+  @RequirePermission(['manage_bookings'])
+  rejectById(
+    @Req() req: { user: JwtUser },
+    @Param('id') id: string,
+    @Body() dto: AdminRejectBookingBodyDto,
+  ) {
+    return this.service.rejectBooking(req.user.sub, {
+      bookingId: id,
+      reason: dto.reason,
+      refundMode: dto.refundMode,
+    });
+  }
+
+  @Patch('admin/:id/refund')
+  @Roles(Role.Admin)
+  @RequirePermission(['manage_bookings'])
+  processRefund(
+    @Param('id') id: string,
+    @Body() dto: AdminProcessRefundDto,
+  ) {
+    return this.service.processRejectedBookingRefunds({
+      bookingId: id,
+      reason: dto.reason ?? 'Manual refund processing initiated by admin',
+      paymentId: dto.paymentId,
+      amount: dto.amount,
+    });
   }
 
   @Patch('admin/pickup')

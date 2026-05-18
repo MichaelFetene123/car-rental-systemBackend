@@ -4,11 +4,13 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import {
   BookingStatus,
+  PaymentStatus,
   PaymentMethod,
   Prisma,
 } from '../generated/prisma/client';
@@ -36,6 +38,16 @@ import { UpdateBookingStatusDto } from './dto/update-status.dto';
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
 const BUFFER_IN_MS = DAY_IN_MS;
 const BLOCKING_BOOKING_STATUSES: BookingStatus[] = ['approved', 'active'];
+const REFUND_VERIFY_PAYMENT_STATUSES: PaymentStatus[] = [
+  'refund_initiated',
+  'refund_processing',
+];
+const REFUNDABLE_PAYMENT_STATUSES: PaymentStatus[] = [
+  'completed',
+  'partially_refunded',
+  'refund_reversed',
+];
+const AUTO_REFUND_QUEUED_NOTE = 'Refund queued for automatic processing';
 
 type BookingConflict = {
   id: string;
@@ -48,7 +60,43 @@ type BookingConflict = {
 
 @Injectable()
 export class BookingsService {
+  private readonly logger = new Logger(BookingsService.name);
+
   constructor(private prisma: PrismaService) {}
+
+  private adminBookingInclude(): Prisma.BookingInclude {
+    return {
+      user: {
+        select: {
+          id: true,
+          full_name: true,
+          email: true,
+          phone: true,
+        },
+      },
+      car: {
+        select: {
+          id: true,
+          name: true,
+          imageUrl: true,
+          status: true,
+        },
+      },
+      pickupLocation: {
+        select: {
+          name: true,
+        },
+      },
+      returnLocation: {
+        select: {
+          name: true,
+        },
+      },
+      payments: {
+        orderBy: { createdAt: 'desc' },
+      },
+    };
+  }
 
   async createBooking(userId: string, dto: CreateBookingDto) {
     const pickup = this.parseDateOrThrow(dto.pickupAt, 'pickupAt');
@@ -188,37 +236,7 @@ export class BookingsService {
       where: {
         deletedAt: null,
       },
-      include: {
-        user: {
-          select: {
-            id: true,
-            full_name: true,
-            email: true,
-            phone: true,
-          },
-        },
-        car: {
-          select: {
-            id: true,
-            name: true,
-            imageUrl: true,
-            status: true,
-          },
-        },
-        pickupLocation: {
-          select: {
-            name: true,
-          },
-        },
-        returnLocation: {
-          select: {
-            name: true,
-          },
-        },
-        payments: {
-          orderBy: { createdAt: 'desc' },
-        },
-      },
+      include: this.adminBookingInclude(),
       orderBy: { bookedAt: 'desc' },
     });
   }
@@ -511,6 +529,107 @@ export class BookingsService {
     });
   }
 
+  async deleteRejectedBooking(adminUserId: string, bookingId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const booking = await tx.booking.findUnique({
+        where: { id: bookingId },
+        include: {
+          payments: {
+            select: {
+              status: true,
+            },
+          },
+        },
+      });
+
+      if (!booking || booking.deletedAt) {
+        throw new NotFoundException('Booking not found');
+      }
+
+      if (booking.status !== 'rejected') {
+        throw new BadRequestException(
+          'Only rejected bookings can be deleted by admins',
+        );
+      }
+
+      const hasRefundedPayment = booking.payments.some(
+        (payment) => payment.status === 'refunded',
+      );
+      const hasPendingOrFailedRefund = booking.payments.some((payment) =>
+        [
+          'completed',
+          'partially_refunded',
+          'refund_initiated',
+          'refund_processing',
+          'refund_reversed',
+        ].includes(payment.status),
+      );
+
+      if (!hasRefundedPayment || hasPendingOrFailedRefund) {
+        throw new BadRequestException(
+          'Rejected bookings can be deleted only after refund is completed',
+        );
+      }
+
+      return tx.booking.update({
+        where: { id: booking.id },
+        data: {
+          deletedAt: new Date(),
+          reviewedByUserId: adminUserId,
+          idempotencyKey: null,
+        },
+      });
+    });
+  }
+
+  async deleteRefundedBooking(adminUserId: string, bookingId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const booking = await tx.booking.findUnique({
+        where: { id: bookingId },
+        include: {
+          payments: true,
+        },
+      });
+
+      if (!booking || booking.deletedAt) {
+        throw new NotFoundException('Booking not found');
+      }
+
+      const paymentSummary = summarizePayments(booking.payments);
+      const hasRefundSignal = booking.payments.some((payment) =>
+        [
+          'refunded',
+          'partially_refunded',
+          'refund_initiated',
+          'refund_processing',
+          'refund_reversed',
+        ].includes(payment.status),
+      );
+      const hasRefundInFlight = booking.payments.some((payment) =>
+        ['refund_initiated', 'refund_processing', 'refund_reversed'].includes(
+          payment.status,
+        ),
+      );
+      const isRefunded =
+        paymentSummary.netPaid <= 0 && hasRefundSignal && !hasRefundInFlight;
+
+      if (!isRefunded) {
+        throw new BadRequestException(
+          'Only refunded bookings can be deleted by admins',
+        );
+      }
+
+      return tx.booking.update({
+        where: { id: booking.id },
+        data: {
+          deletedAt: new Date(),
+          reviewedByUserId: adminUserId,
+          idempotencyKey: null,
+        },
+      });
+    });
+  }
+
   async cancelUnpaidPendingBooking(
     adminUserId: string,
     dto: AdminCancelBookingDto,
@@ -665,7 +784,10 @@ export class BookingsService {
   }
 
   async rejectBooking(adminUserId: string, dto: AdminRejectBookingDto) {
-    return this.prisma.$transaction(async (tx) => {
+    const refundReason = dto.reason ?? 'Booking rejected by admin';
+    const refundCompletedAt = new Date();
+
+    const updated = await this.prisma.$transaction(async (tx) => {
       const booking = await tx.booking.findUnique({
         where: { id: dto.bookingId },
       });
@@ -674,20 +796,41 @@ export class BookingsService {
         throw new NotFoundException('Booking not found');
       }
 
+      if (booking.deletedAt) {
+        throw new NotFoundException('Booking not found');
+      }
+
       if (booking.status !== 'pending') {
         throw new BadRequestException('Only pending bookings can be rejected');
       }
 
+      const completedPayments = await tx.payment.findMany({
+        where: {
+          bookingId: booking.id,
+          status: 'completed',
+        },
+        select: {
+          id: true,
+          amount: true,
+        },
+      });
+
+      if (!completedPayments.length) {
+        throw new BadRequestException(
+          'Only paid pending bookings can be rejected before approval',
+        );
+      }
+
       await this.lockCarWorkflow(tx, booking.carId);
 
-      const updated = await tx.booking.update({
+      const rejectedBooking = await tx.booking.update({
         where: { id: booking.id },
         data: {
           status: 'rejected',
           rejectedAt: new Date(),
           reviewedByUserId: adminUserId,
-          reviewNote: dto.reason ?? null,
-          rejectionReason: dto.reason ?? null,
+          reviewNote: refundReason,
+          rejectionReason: refundReason,
         },
       });
 
@@ -702,33 +845,91 @@ export class BookingsService {
         },
       });
 
+      for (const payment of completedPayments) {
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: {
+            refundReason,
+            status: 'refunded',
+            refundedAmount: payment.amount,
+            refundCompletedAt,
+            notes: 'Refunded automatically on rejection',
+          },
+        });
+      }
+
       await this.logStatusTransition(tx, {
         bookingId: booking.id,
         fromStatus: booking.status,
         toStatus: 'rejected',
         changedByUserId: adminUserId,
-        reason: dto.reason ?? 'Rejected by admin',
+        reason: refundReason,
         metadata: {
           source: 'admin',
+          refundMode: RefundMode.AUTO,
         },
       });
 
-      const paymentSummary = await this.getBookingPaymentSummary(
-        tx,
-        booking.id,
-      );
-      if (paymentSummary.netPaid > 0) {
-        await this.refundCompletedPayments(tx, {
-          bookingId: booking.id,
-          reason: dto.reason ?? 'Booking rejected by admin',
-          manualReview: dto.refundMode === RefundMode.MANUAL_REVIEW,
-        });
-      }
-
       await this.syncCarStatus(tx, booking.carId);
 
-      return updated;
+      return rejectedBooking;
     });
+
+    const refreshed = await this.prisma.booking.findUnique({
+      where: { id: updated.id },
+      include: this.adminBookingInclude(),
+    });
+
+    return refreshed ?? updated;
+  }
+
+  async processQueuedAutoRefunds() {
+    const queuedPayments = await this.prisma.payment.findMany({
+      where: {
+        status: {
+          in: REFUNDABLE_PAYMENT_STATUSES,
+        },
+        notes: AUTO_REFUND_QUEUED_NOTE,
+        booking: {
+          status: 'rejected',
+          deletedAt: null,
+        },
+      },
+      select: {
+        bookingId: true,
+        refundReason: true,
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 100,
+    });
+
+    const processedBookingIds = new Set<string>();
+
+    for (const queuedPayment of queuedPayments) {
+      if (processedBookingIds.has(queuedPayment.bookingId)) {
+        continue;
+      }
+
+      processedBookingIds.add(queuedPayment.bookingId);
+
+      try {
+        await this.processRejectedBookingRefunds({
+          bookingId: queuedPayment.bookingId,
+          reason: queuedPayment.refundReason ?? 'Booking rejected by admin',
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown refund error';
+        this.logger.warn(
+          `Automatic queued refund failed for booking ${queuedPayment.bookingId}: ${message}`,
+        );
+      }
+    }
+
+    return {
+      totalQueuedPayments: queuedPayments.length,
+      bookingsProcessed: processedBookingIds.size,
+    };
   }
 
   async markBookingPickup(adminUserId: string, dto: AdminPickupBookingDto) {
@@ -955,6 +1156,211 @@ export class BookingsService {
         throw new BadRequestException('Unsupported booking status transition');
     }
   }
+  async processRejectedBookingRefunds(params: {
+    bookingId: string;
+    reason: string;
+    paymentId?: string;
+    amount?: number;
+  }) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: params.bookingId },
+      select: {
+        id: true,
+        status: true,
+        deletedAt: true,
+      },
+    });
+
+    if (!booking || booking.deletedAt) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    if (booking.status !== 'rejected') {
+      throw new BadRequestException(
+        'Refund processing is only allowed for rejected bookings',
+      );
+    }
+
+    const refundablePaymentWhere: Prisma.PaymentWhereInput = {
+      bookingId: params.bookingId,
+      status: {
+        in: REFUNDABLE_PAYMENT_STATUSES,
+      },
+    };
+
+    if (params.paymentId) {
+      refundablePaymentWhere.id = params.paymentId;
+    }
+
+    const refundablePayments = await this.prisma.payment.findMany({
+      where: refundablePaymentWhere,
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+      },
+    });
+
+    if (params.paymentId && refundablePayments.length === 0) {
+      throw new BadRequestException(
+        'Selected payment is not refundable for this rejected booking',
+      );
+    }
+
+    if (params.amount !== undefined && refundablePayments.length !== 1) {
+      throw new BadRequestException(
+        'Provide paymentId when processing a partial refund for multiple payments',
+      );
+    }
+
+    let queued = 0;
+    let completed = 0;
+    let failed = 0;
+    let skipped = 0;
+
+    for (const payment of refundablePayments) {
+      const outcome = await this.initiateRefundForPayment({
+        paymentId: payment.id,
+        reason: params.reason,
+        amount: params.amount,
+      });
+
+      if (outcome === 'queued') {
+        queued += 1;
+      } else if (outcome === 'completed') {
+        completed += 1;
+      } else if (outcome === 'failed') {
+        failed += 1;
+      } else if (outcome === 'skipped') {
+        skipped += 1;
+      }
+    }
+
+    return {
+      bookingId: params.bookingId,
+      paymentId: params.paymentId ?? null,
+      requestedAmount: params.amount ?? null,
+      total: refundablePayments.length,
+      queued,
+      completed,
+      failed,
+      skipped,
+    };
+  }
+
+  async verifyPendingRefunds() {
+    const payments = await this.prisma.payment.findMany({
+      where: {
+        status: {
+          in: REFUND_VERIFY_PAYMENT_STATUSES,
+        },
+        refundReference: {
+          not: null,
+        },
+      },
+      select: {
+        id: true,
+        bookingId: true,
+        status: true,
+        amount: true,
+        refundedAmount: true,
+        refundReference: true,
+      },
+      take: 100,
+      orderBy: { createdAt: 'asc' },
+    });
+
+    for (const payment of payments) {
+      const refundReference = payment.refundReference;
+      if (!refundReference) {
+        continue;
+      }
+
+      try {
+        const verification = await this.callChapaVerifyRefund(refundReference);
+        const mappedStatus = this.mapGatewayRefundStatus(verification.status);
+
+        if (!mappedStatus) {
+          continue;
+        }
+
+        if (mappedStatus === 'refunded') {
+          const totalAmount = Number(payment.amount);
+          const currentRefunded = Number(payment.refundedAmount);
+          const remaining = Math.max(totalAmount - currentRefunded, 0);
+          const verifiedAmount =
+            typeof verification.amount === 'number' &&
+            Number.isFinite(verification.amount) &&
+            verification.amount > 0
+              ? verification.amount
+              : remaining;
+          const settledAmount = Math.min(verifiedAmount, remaining);
+          const nextRefunded = Math.min(
+            currentRefunded + settledAmount,
+            totalAmount,
+          );
+
+          const updateData: Prisma.PaymentUpdateInput = {
+            status:
+              nextRefunded >= totalAmount ? 'refunded' : 'partially_refunded',
+            refundedAmount: nextRefunded,
+            notes: `Refund status verified as ${verification.status}`,
+          };
+
+          if (nextRefunded >= totalAmount) {
+            updateData.refundCompletedAt = new Date();
+          }
+
+          await this.prisma.payment.update({
+            where: { id: payment.id },
+            data: updateData,
+          });
+          await this.recordRefundAuditEvent({
+            paymentId: payment.id,
+            bookingId: payment.bookingId,
+            eventType: 'refund_verified',
+            refundReference,
+            gatewayStatus: verification.status,
+            settledAmount,
+            message: `Verification moved payment to ${updateData.status}`,
+            payload: verification.payload,
+          });
+          continue;
+        }
+
+        const updateData: Prisma.PaymentUpdateInput = {
+          status: mappedStatus,
+          notes: `Refund status verified as ${verification.status}`,
+        };
+
+        await this.prisma.payment.update({
+          where: { id: payment.id },
+          data: updateData,
+        });
+        await this.recordRefundAuditEvent({
+          paymentId: payment.id,
+          bookingId: payment.bookingId,
+          eventType: 'refund_verified',
+          refundReference,
+          gatewayStatus: verification.status,
+          message: `Verification moved payment to ${mappedStatus}`,
+          payload: verification.payload,
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown refund error';
+        await this.recordRefundAuditEvent({
+          paymentId: payment.id,
+          bookingId: payment.bookingId,
+          eventType: 'refund_verify_failed',
+          refundReference,
+          message,
+        });
+        this.logger.warn(
+          `Refund verify failed for payment ${payment.id}: ${message}`,
+        );
+      }
+    }
+  }
 
   private parseDateOrThrow(value: string, fieldName: 'pickupAt' | 'returnAt') {
     const date = new Date(value);
@@ -1071,6 +1477,375 @@ export class BookingsService {
     });
 
     return summarizePayments(payments);
+  }
+
+  private async initiateRefundForPayment(params: {
+    paymentId: string;
+    reason: string;
+    amount?: number;
+  }): Promise<'queued' | 'completed' | 'failed' | 'skipped'> {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: params.paymentId },
+      select: {
+        id: true,
+        bookingId: true,
+        transactionId: true,
+        amount: true,
+        refundedAmount: true,
+        status: true,
+      },
+    });
+
+    if (!payment) {
+      return 'skipped';
+    }
+
+    if (!REFUNDABLE_PAYMENT_STATUSES.includes(payment.status)) {
+      return 'skipped';
+    }
+
+    const totalAmount = Number(payment.amount);
+    const currentRefunded = Number(payment.refundedAmount);
+    const remainingRefund = Math.max(totalAmount - currentRefunded, 0);
+
+    if (remainingRefund <= 0) {
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: 'refunded',
+          refundedAmount: totalAmount,
+          refundCompletedAt: new Date(),
+          notes: 'Refund already fully settled',
+        },
+      });
+
+      return 'completed';
+    }
+
+    const requestedRefundAmount = params.amount ?? remainingRefund;
+    if (!Number.isFinite(requestedRefundAmount) || requestedRefundAmount <= 0) {
+      throw new BadRequestException('Refund amount must be greater than zero');
+    }
+
+    if (requestedRefundAmount > remainingRefund) {
+      throw new BadRequestException(
+        `Refund amount exceeds remaining refundable balance for payment ${payment.id}`,
+      );
+    }
+
+    if (!payment.transactionId) {
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          refundReason: params.reason,
+          notes:
+            'Automatic refund initiation skipped: missing transaction reference. Manual review required.',
+        },
+      });
+      await this.recordRefundAuditEvent({
+        paymentId: payment.id,
+        bookingId: payment.bookingId,
+        eventType: 'refund_initiation_skipped',
+        requestedAmount: requestedRefundAmount,
+        message: 'Missing transaction reference for refund processing',
+      });
+
+      return 'failed';
+    }
+
+    const requestReference = this.generateRefundRequestReference(payment.id);
+    await this.recordRefundAuditEvent({
+      paymentId: payment.id,
+      bookingId: payment.bookingId,
+      eventType: 'refund_initiation_requested',
+      requestReference,
+      requestedAmount: requestedRefundAmount,
+      message: 'Refund initiation request submitted',
+    });
+
+    try {
+      const refundResponse = await this.callChapaInitiateRefund({
+        txRef: payment.transactionId,
+        amount: requestedRefundAmount,
+        reason: params.reason,
+        bookingId: payment.bookingId,
+        paymentId: payment.id,
+        requestReference,
+      });
+
+      const mappedStatus = this.mapGatewayRefundStatus(refundResponse.status);
+      const nextStatus: PaymentStatus =
+        mappedStatus === 'refund_processing'
+          ? 'refund_processing'
+          : 'refund_initiated';
+
+      const updateData: Prisma.PaymentUpdateInput = {
+        status: nextStatus,
+        refundReason: params.reason,
+        refundReference: refundResponse.refId ?? requestReference,
+        refundRequestedAt: new Date(),
+        notes: `Refund initiated (${refundResponse.status ?? 'initiated'}) for amount ${requestedRefundAmount}`,
+      };
+
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: updateData,
+      });
+      await this.recordRefundAuditEvent({
+        paymentId: payment.id,
+        bookingId: payment.bookingId,
+        eventType: 'refund_initiated',
+        requestReference,
+        refundReference: refundResponse.refId ?? requestReference,
+        gatewayStatus: refundResponse.status,
+        requestedAmount: requestedRefundAmount,
+        message: `Refund moved to ${nextStatus}`,
+        payload: refundResponse.payload,
+      });
+
+      return 'queued';
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Refund initiation failed';
+
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          refundReason: params.reason,
+          notes: `Automatic refund initiation failed: ${message}. Manual review required.`,
+        },
+      });
+      await this.recordRefundAuditEvent({
+        paymentId: payment.id,
+        bookingId: payment.bookingId,
+        eventType: 'refund_initiation_failed',
+        requestReference,
+        requestedAmount: requestedRefundAmount,
+        message,
+      });
+
+      this.logger.warn(
+        `Refund initiation failed for payment ${payment.id}: ${message}`,
+      );
+
+      return 'failed';
+    }
+  }
+
+  private async callChapaInitiateRefund(params: {
+    txRef: string;
+    amount: number;
+    reason: string;
+    bookingId: string;
+    paymentId: string;
+    requestReference: string;
+  }): Promise<{ refId?: string; status?: string; payload?: unknown }> {
+    const { baseUrl, secretKey } = this.resolveChapaConfig();
+    const form = new URLSearchParams();
+    form.append('reason', params.reason);
+    form.append('amount', String(params.amount));
+    form.append('reference', params.requestReference);
+    form.append('meta[booking_id]', params.bookingId);
+    form.append('meta[payment_id]', params.paymentId);
+
+    const response = await fetch(
+      `${baseUrl}/refund/${encodeURIComponent(params.txRef)}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: form.toString(),
+      },
+    );
+
+    const payload = await this.parseGatewayPayload(response);
+
+    if (!response.ok || payload?.status !== 'success') {
+      throw new Error(this.buildGatewayErrorMessage(response.status, payload));
+    }
+
+    return {
+      refId: payload?.data?.ref_id,
+      status:
+        typeof payload?.data?.status === 'string'
+          ? payload.data.status.toLowerCase()
+          : undefined,
+      payload,
+    };
+  }
+
+  private async callChapaVerifyRefund(refId: string): Promise<{
+    status: string;
+    amount?: number;
+    payload?: unknown;
+  }> {
+    const { baseUrl, secretKey } = this.resolveChapaConfig();
+    const response = await fetch(
+      `${baseUrl}/refund/${encodeURIComponent(refId)}/verify`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+        },
+      },
+    );
+
+    const payload = await this.parseGatewayPayload(response);
+
+    if (!response.ok || payload?.status !== 'success') {
+      throw new Error(this.buildGatewayErrorMessage(response.status, payload));
+    }
+
+    return {
+      status:
+        typeof payload?.data?.status === 'string'
+          ? payload.data.status.toLowerCase()
+          : 'initiated',
+      amount:
+        typeof payload?.data?.amount === 'number'
+          ? payload.data.amount
+          : typeof payload?.data?.amount === 'string'
+            ? Number(payload.data.amount)
+            : undefined,
+      payload,
+    };
+  }
+
+  private mapGatewayRefundStatus(status?: string): PaymentStatus | null {
+    if (!status) {
+      return null;
+    }
+
+    switch (status.toLowerCase()) {
+      case 'initiated':
+        return 'refund_initiated';
+      case 'processing':
+        return 'refund_processing';
+      case 'refunded':
+        return 'refunded';
+      case 'reversed':
+        return 'refund_reversed';
+      default:
+        return null;
+    }
+  }
+
+  private resolveChapaConfig() {
+    const baseUrl = process.env.CHAPA_BASE_URL;
+    const secretKey = process.env.CHAPA_SECRET_KEY;
+
+    if (!baseUrl || !secretKey) {
+      throw new Error('Chapa configuration is missing');
+    }
+
+    return {
+      baseUrl: this.normalizeChapaBaseUrl(baseUrl),
+      secretKey,
+    };
+  }
+
+  private normalizeChapaBaseUrl(url: string) {
+    return url.replace(/\/+$/, '');
+  }
+
+  private async parseGatewayPayload(response: Response) {
+    const bodyText = await response.text();
+
+    if (!bodyText) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(bodyText);
+    } catch {
+      return {
+        message: bodyText,
+      };
+    }
+  }
+
+  private buildGatewayErrorMessage(statusCode: number, payload: unknown) {
+    const payloadMessage =
+      typeof payload === 'object' &&
+      payload !== null &&
+      'message' in payload &&
+      typeof payload.message === 'string'
+        ? payload.message
+        : null;
+
+    return payloadMessage ?? `Gateway error (${statusCode})`;
+  }
+
+  private normalizeAuditPayload(
+    payload: unknown,
+  ): Prisma.InputJsonValue | undefined {
+    if (payload === undefined) {
+      return undefined;
+    }
+
+    try {
+      return JSON.parse(JSON.stringify(payload)) as Prisma.InputJsonValue;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async recordRefundAuditEvent(params: {
+    paymentId: string;
+    bookingId: string;
+    eventType: string;
+    requestReference?: string;
+    refundReference?: string;
+    gatewayStatus?: string;
+    requestedAmount?: number;
+    settledAmount?: number;
+    message?: string;
+    payload?: unknown;
+  }) {
+    const auditDelegate = (
+      this.prisma as unknown as {
+        paymentRefundAudit?: {
+          create?: (args: unknown) => Promise<unknown>;
+        };
+      }
+    ).paymentRefundAudit;
+
+    if (!auditDelegate?.create) {
+      return;
+    }
+
+    try {
+      await auditDelegate.create({
+        data: {
+          paymentId: params.paymentId,
+          bookingId: params.bookingId,
+          eventType: params.eventType,
+          requestReference: params.requestReference,
+          refundReference: params.refundReference,
+          gatewayStatus: params.gatewayStatus,
+          requestedAmount:
+            params.requestedAmount !== undefined
+              ? new Prisma.Decimal(params.requestedAmount)
+              : undefined,
+          settledAmount:
+            params.settledAmount !== undefined
+              ? new Prisma.Decimal(params.settledAmount)
+              : undefined,
+          message: params.message,
+          payloadJson: this.normalizeAuditPayload(params.payload),
+        },
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown refund audit error';
+      this.logger.warn(`Failed to persist refund audit event: ${message}`);
+    }
+  }
+
+  private generateRefundRequestReference(paymentId: string) {
+    return `REF-${paymentId.slice(0, 8)}-${randomUUID().slice(0, 8)}`;
   }
 
   private async refundCompletedPayments(

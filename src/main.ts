@@ -1,20 +1,14 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { json, static as serveStatic } from 'express';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { AppModule } from './app.module';
 
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-
-  app.use(
-    json({
-      verify: (req, _res, buf) => {
-        (req as { rawBody?: string }).rawBody = buf.toString('utf8');
-      },
-    }),
-  );
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true,
+  });
 
   const configuredOrigins =
     process.env.FRONTEND_URLS ?? process.env.FRONTEND_URL;
@@ -30,7 +24,9 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.use('/uploads', serveStatic(join(process.cwd(), 'uploads')));
+  app.useStaticAssets(join(process.cwd(), 'uploads'), {
+    prefix: '/uploads',
+  });
 
   app.useGlobalPipes(new ValidationPipe({
     transform: true,

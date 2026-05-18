@@ -192,14 +192,39 @@ model Payment {
   status        PaymentStatus
   paidAt        DateTime?     @map("paid_at") @db.Timestamp(6)
   refundReason  String?       @map("refund_reason")
+  refundReference String?     @map("refund_reference") @db.VarChar(120)
+  refundRequestedAt DateTime? @map("refund_requested_at") @db.Timestamp(6)
+  refundCompletedAt DateTime? @map("refund_completed_at") @db.Timestamp(6)
   notes         String?       @map("notes")
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamp(6)
   booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  refundAudits  PaymentRefundAudit[]
 
   @@index([bookingId], map: "idx_payments_booking")
   @@index([status], map: "idx_payments_status")
   @@index([paidAt], map: "idx_payments_paid_at")
   @@map("payments")
+}
+
+model PaymentRefundAudit {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentId       String   @map("payment_id") @db.Uuid
+  bookingId       String   @map("booking_id") @db.Uuid
+  eventType       String   @map("event_type") @db.VarChar(60)
+  requestReference String? @map("request_reference") @db.VarChar(120)
+  refundReference String?  @map("refund_reference") @db.VarChar(120)
+  gatewayStatus   String?  @map("gateway_status") @db.VarChar(40)
+  requestedAmount Decimal? @map("requested_amount") @db.Decimal(10, 2)
+  settledAmount   Decimal? @map("settled_amount") @db.Decimal(10, 2)
+  message         String?  @map("message")
+  payloadJson     Json?    @map("payload_json")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  payment         Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId, createdAt], map: "idx_payment_refund_audits_payment_time")
+  @@index([bookingId, createdAt], map: "idx_payment_refund_audits_booking_time")
+  @@index([refundReference], map: "idx_payment_refund_audits_ref_ref")
+  @@map("payment_refund_audits")
 }
 
 model BookingStatusTransition {
@@ -304,8 +329,11 @@ enum PaymentMethod {
 enum PaymentStatus {
   pending
   completed
+  refund_initiated
+  refund_processing
   partially_refunded
   refunded
+  refund_reversed
   failed
   expired
 }

@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BookingsService } from './bookings.service';
 import { PrismaService } from '../prisma.service';
+import { RefundMode } from './dto/admin-reject-booking.dto';
 
 describe('BookingsService', () => {
   let service: BookingsService;
@@ -235,6 +236,231 @@ describe('BookingsService', () => {
       },
     });
     expect(result).toEqual(deletedBooking);
+  });
+
+  it('rejects paid pending bookings and flags manual refund review', async () => {
+    const updatedBooking = {
+      id: 'booking-paid-pending',
+      status: 'rejected',
+      rejectedAt: new Date(),
+      reviewedByUserId: 'admin-1',
+    };
+
+    const tx = {
+      booking: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'booking-paid-pending',
+          status: 'pending',
+          carId: 'car-1',
+          deletedAt: null,
+        }),
+        update: jest.fn().mockResolvedValue(updatedBooking),
+        count: jest.fn().mockResolvedValue(0),
+      },
+      payment: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'payment-1',
+            status: 'completed',
+            amount: 250,
+          },
+        ]),
+        updateMany: jest.fn(),
+        update: jest.fn(),
+      },
+      bookingStatusTransition: {
+        create: jest.fn(),
+      },
+      car: {
+        findUnique: jest.fn().mockResolvedValue({
+          status: 'available',
+        }),
+        update: jest.fn(),
+      },
+      $executeRaw: jest.fn(),
+    };
+
+    prisma.$transaction.mockImplementation(
+      async <TResult>(handler: (client: typeof tx) => Promise<TResult>) =>
+        handler(tx),
+    );
+
+    (prisma as any).booking = {
+      findUnique: jest.fn().mockResolvedValue(updatedBooking),
+    };
+
+    const result = await service.rejectBooking('admin-1', {
+      bookingId: 'booking-paid-pending',
+      reason: 'Capacity issue',
+      refundMode: RefundMode.MANUAL_REVIEW,
+    });
+
+    const updateCalls = (tx.payment.update as jest.Mock).mock.calls;
+
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0]?.[0]).toMatchObject({
+      where: { id: 'payment-1' },
+      data: {
+        refundReason: 'Capacity issue',
+        status: 'refunded',
+        refundedAmount: 250,
+      },
+    });
+    expect(tx.car.update).toHaveBeenCalledWith({
+      where: { id: 'car-1' },
+      data: {
+        status: 'available',
+      },
+    });
+    expect(result).toEqual(updatedBooking);
+  });
+
+  it('rejects paid pending bookings in auto mode without changing completed payment status immediately', async () => {
+    const updatedBooking = {
+      id: 'booking-paid-pending-auto',
+      status: 'rejected',
+      rejectedAt: new Date(),
+      reviewedByUserId: 'admin-1',
+    };
+
+    const tx = {
+      booking: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'booking-paid-pending-auto',
+          status: 'pending',
+          carId: 'car-1',
+          deletedAt: null,
+        }),
+        update: jest.fn().mockResolvedValue(updatedBooking),
+        count: jest.fn().mockResolvedValue(0),
+      },
+      payment: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'payment-1',
+            status: 'completed',
+            amount: 250,
+          },
+        ]),
+        updateMany: jest.fn(),
+        update: jest.fn(),
+      },
+      bookingStatusTransition: {
+        create: jest.fn(),
+      },
+      car: {
+        findUnique: jest.fn().mockResolvedValue({
+          status: 'available',
+        }),
+        update: jest.fn(),
+      },
+      $executeRaw: jest.fn(),
+    };
+
+    prisma.$transaction.mockImplementation(
+      async <TResult>(handler: (client: typeof tx) => Promise<TResult>) =>
+        handler(tx),
+    );
+
+    (prisma as any).booking = {
+      findUnique: jest.fn().mockResolvedValue(updatedBooking),
+    };
+
+    const result = await service.rejectBooking('admin-1', {
+      bookingId: 'booking-paid-pending-auto',
+      reason: 'Customer request',
+      refundMode: RefundMode.AUTO,
+    });
+
+    const updateCalls = (tx.payment.update as jest.Mock).mock.calls;
+
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0]?.[0]).toMatchObject({
+      where: { id: 'payment-1' },
+      data: {
+        refundReason: 'Customer request',
+        status: 'refunded',
+        refundedAmount: 250,
+      },
+    });
+    expect(result).toEqual(updatedBooking);
+  });
+
+  it('does not set refund_reversed when refund initiation cannot start due to missing transaction reference', async () => {
+    (prisma as any).booking = {
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'booking-rejected-auto',
+        status: 'rejected',
+        deletedAt: null,
+      }),
+    };
+
+    (prisma as any).payment = {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'payment-1',
+        },
+      ]),
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'payment-1',
+        bookingId: 'booking-rejected-auto',
+        transactionId: null,
+        amount: 200,
+        refundedAmount: 0,
+        status: 'completed',
+      }),
+      update: jest.fn().mockResolvedValue({}),
+    };
+
+    const result = await service.processRejectedBookingRefunds({
+      bookingId: 'booking-rejected-auto',
+      reason: 'Auto refund after rejection',
+    });
+
+    expect((prisma as any).payment.update).toHaveBeenCalledWith({
+      where: { id: 'payment-1' },
+      data: expect.objectContaining({
+        refundReason: 'Auto refund after rejection',
+      }),
+    });
+    expect(
+      (prisma as any).payment.update.mock.calls[0][0].data,
+    ).not.toHaveProperty('status');
+    expect(result).toMatchObject({
+      failed: 1,
+      completed: 0,
+      queued: 0,
+    });
+  });
+
+  it('blocks deleting rejected booking before refund completion', async () => {
+    const tx = {
+      booking: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'booking-rejected',
+          status: 'rejected',
+          deletedAt: null,
+          payments: [
+            {
+              status: 'refund_processing',
+            },
+          ],
+        }),
+        update: jest.fn(),
+      },
+    };
+
+    prisma.$transaction.mockImplementation(
+      async <TResult>(handler: (client: typeof tx) => Promise<TResult>) =>
+        handler(tx),
+    );
+
+    await expect(
+      service.deleteRejectedBooking('admin-1', 'booking-rejected'),
+    ).rejects.toThrow(
+      'Rejected bookings can be deleted only after refund is completed',
+    );
+    expect(tx.booking.update).not.toHaveBeenCalled();
   });
 
   it('cancels unpaid pending bookings manually by admin', async () => {
