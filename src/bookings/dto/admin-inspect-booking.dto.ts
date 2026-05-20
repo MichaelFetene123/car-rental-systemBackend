@@ -25,6 +25,11 @@ export class AdminInspectBookingDto {
   lateFee?: number;
 
   @IsOptional()
+  @IsNumber()
+  @Min(0)
+  inspectionFee?: number;
+
+  @IsOptional()
   @IsString()
   @MaxLength(2000)
   damageNotes?: string;

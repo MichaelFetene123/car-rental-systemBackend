@@ -529,6 +529,33 @@ export class BookingsService {
     });
   }
 
+  async deleteCompletedBooking(adminUserId: string, bookingId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const booking = await tx.booking.findUnique({
+        where: { id: bookingId },
+      });
+
+      if (!booking || booking.deletedAt) {
+        throw new NotFoundException('Booking not found');
+      }
+
+      if (booking.status !== 'completed') {
+        throw new BadRequestException(
+          'Only completed bookings can be deleted by admins',
+        );
+      }
+
+      return tx.booking.update({
+        where: { id: booking.id },
+        data: {
+          deletedAt: new Date(),
+          reviewedByUserId: adminUserId,
+          idempotencyKey: null,
+        },
+      });
+    });
+  }
+
   async deleteRejectedBooking(adminUserId: string, bookingId: string) {
     return this.prisma.$transaction(async (tx) => {
       const booking = await tx.booking.findUnique({
@@ -800,8 +827,10 @@ export class BookingsService {
         throw new NotFoundException('Booking not found');
       }
 
-      if (booking.status !== 'pending') {
-        throw new BadRequestException('Only pending bookings can be rejected');
+      if (!['pending', 'approved'].includes(booking.status)) {
+        throw new BadRequestException(
+          'Only pending or approved bookings can be rejected',
+        );
       }
 
       const completedPayments = await tx.payment.findMany({
@@ -817,7 +846,7 @@ export class BookingsService {
 
       if (!completedPayments.length) {
         throw new BadRequestException(
-          'Only paid pending bookings can be rejected before approval',
+          'Only paid pending or approved bookings can be rejected',
         );
       }
 
@@ -1070,6 +1099,13 @@ export class BookingsService {
   ) {
     const extraCharges = dto.extraCharges ?? 0;
     const lateFee = dto.lateFee ?? 0;
+    const inspectionFee = dto.inspectionFee ?? 0;
+
+    if (extraCharges < 0 || lateFee < 0 || inspectionFee < 0) {
+      throw new BadRequestException(
+        'Inspection charges must be zero or higher',
+      );
+    }
 
     return this.prisma.$transaction(async (tx) => {
       const booking = await tx.booking.findUnique({
@@ -1091,12 +1127,13 @@ export class BookingsService {
         data: {
           extraCharges,
           lateFee,
+          inspectionFee,
           damageNotes: dto.damageNotes,
           reviewedByUserId: adminUserId,
         },
       });
 
-      const totalAdditionalAmount = extraCharges + lateFee;
+      const totalAdditionalAmount = extraCharges + lateFee + inspectionFee;
       const shouldCreatePayment = dto.createAdditionalPayment !== false;
 
       if (totalAdditionalAmount > 0 && shouldCreatePayment) {
@@ -1109,7 +1146,7 @@ export class BookingsService {
             fees: 0,
             method: dto.additionalPaymentMethod ?? PaymentMethod.cash,
             status: 'pending',
-            notes: `Inspection charge. Late fee: ${lateFee}. Extra charges: ${extraCharges}`,
+            notes: `Inspection charge. Late fee: ${lateFee}. Extra charges: ${extraCharges}. Inspection fee: ${inspectionFee}`,
           },
         });
       }

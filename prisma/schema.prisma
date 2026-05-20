@@ -155,6 +155,7 @@ model Booking {
   cancellationReason String?         @map("cancellation_reason")
   extraCharges     Decimal           @default(0) @map("extra_charges") @db.Decimal(10, 2)
   lateFee          Decimal           @default(0) @map("late_fee") @db.Decimal(10, 2)
+  inspectionFee    Decimal           @default(0) @map("inspection_fee") @db.Decimal(10, 2)
   damageNotes      String?           @map("damage_notes")
   totalAmount      Decimal           @map("total_amount") @db.Decimal(10, 2)
   bookedAt         DateTime          @default(now()) @map("booked_at") @db.Timestamp(6)

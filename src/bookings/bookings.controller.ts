@@ -95,6 +95,13 @@ export class BookingsController {
     return this.service.deleteRefundedBooking(req.user.sub, id);
   }
 
+  @Delete('admin/:id/completed')
+  @Roles(Role.Admin)
+  @RequirePermission(['manage_bookings'])
+  deleteCompleted(@Req() req: { user: JwtUser }, @Param('id') id: string) {
+    return this.service.deleteCompletedBooking(req.user.sub, id);
+  }
+
   @Post(':id/cancel')
   cancel(
     @Req() req: { user: JwtUser },
