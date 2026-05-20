@@ -8,17 +8,29 @@ export class AdminCarCategoriesService {
   constructor(private prisma: PrismaService) {}
 
   async createCategory(dto: CreateCarCategoryDto) {
+    const normalizedName = dto.name.trim();
+
+    if (!normalizedName) {
+      throw new HttpException(
+        'Category name is required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     // Check duplicate name
     const existing = await this.prisma.carCategory.findFirst({
-      where: { name: dto.name },
+      where: { name: normalizedName },
     });
 
     if (existing) {
-      throw new HttpException('Category already exists', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'Category already exists',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     return this.prisma.carCategory.create({
-      data: { name: dto.name },
+      data: { name: normalizedName },
     });
   }
 
@@ -33,19 +45,31 @@ export class AdminCarCategoriesService {
 
     // Optional duplicate check
     if (dto.name) {
+      const normalizedName = dto.name.trim();
+      if (!normalizedName) {
+        throw new HttpException(
+          'Category name is required',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
       const existing = await this.prisma.carCategory.findFirst({
-        where: { name: dto.name },
+        where: { name: normalizedName },
       });
 
       if (existing && existing.id !== id) {
-        throw new HttpException('Category already exists', HttpStatus.BAD_REQUEST);
+        throw new HttpException(
+          'Category already exists',
+          HttpStatus.BAD_REQUEST,
+        );
       }
     }
 
     return this.prisma.carCategory.update({
       where: { id },
       data: {
-        ...(dto.name && { name: dto.name }),
+        ...(dto.name && { name: dto.name.trim() }),
+        ...(typeof dto.isActive === 'boolean' && { isActive: dto.isActive }),
       },
     });
   }
@@ -79,8 +103,27 @@ export class AdminCarCategoriesService {
   }
 
   async getAllCategories() {
-    return this.prisma.carCategory.findMany({
+    const categories = await this.prisma.carCategory.findMany({
+      select: {
+        id: true,
+        name: true,
+        isActive: true,
+        updatedAt: true,
+        _count: {
+          select: {
+            cars: true,
+          },
+        },
+      },
       orderBy: { updatedAt: 'desc' },
     });
+
+    return categories.map((category) => ({
+      id: category.id,
+      name: category.name,
+      isActive: category.isActive,
+      updatedAt: category.updatedAt,
+      carsCount: category._count.cars,
+    }));
   }
 }

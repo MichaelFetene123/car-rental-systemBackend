@@ -481,7 +481,7 @@ export class BookingsService {
         where: { id: bookingId },
       });
 
-      if (!booking || booking.deletedAt) {
+      if (!booking) {
         throw new NotFoundException('Booking not found');
       }
 
@@ -491,13 +491,8 @@ export class BookingsService {
         );
       }
 
-      return tx.booking.update({
+      return tx.booking.delete({
         where: { id: booking.id },
-        data: {
-          deletedAt: new Date(),
-          reviewedByUserId: adminUserId,
-          idempotencyKey: null,
-        },
       });
     });
   }
@@ -508,7 +503,7 @@ export class BookingsService {
         where: { id: bookingId },
       });
 
-      if (!booking || booking.deletedAt) {
+      if (!booking) {
         throw new NotFoundException('Booking not found');
       }
 
@@ -518,13 +513,8 @@ export class BookingsService {
         );
       }
 
-      return tx.booking.update({
+      return tx.booking.delete({
         where: { id: booking.id },
-        data: {
-          deletedAt: new Date(),
-          reviewedByUserId: adminUserId,
-          idempotencyKey: null,
-        },
       });
     });
   }
@@ -535,7 +525,7 @@ export class BookingsService {
         where: { id: bookingId },
       });
 
-      if (!booking || booking.deletedAt) {
+      if (!booking) {
         throw new NotFoundException('Booking not found');
       }
 
@@ -545,13 +535,8 @@ export class BookingsService {
         );
       }
 
-      return tx.booking.update({
+      return tx.booking.delete({
         where: { id: booking.id },
-        data: {
-          deletedAt: new Date(),
-          reviewedByUserId: adminUserId,
-          idempotencyKey: null,
-        },
       });
     });
   }
@@ -569,7 +554,7 @@ export class BookingsService {
         },
       });
 
-      if (!booking || booking.deletedAt) {
+      if (!booking) {
         throw new NotFoundException('Booking not found');
       }
 
@@ -598,13 +583,8 @@ export class BookingsService {
         );
       }
 
-      return tx.booking.update({
+      return tx.booking.delete({
         where: { id: booking.id },
-        data: {
-          deletedAt: new Date(),
-          reviewedByUserId: adminUserId,
-          idempotencyKey: null,
-        },
       });
     });
   }
@@ -618,7 +598,7 @@ export class BookingsService {
         },
       });
 
-      if (!booking || booking.deletedAt) {
+      if (!booking) {
         throw new NotFoundException('Booking not found');
       }
 
@@ -646,13 +626,8 @@ export class BookingsService {
         );
       }
 
-      return tx.booking.update({
+      return tx.booking.delete({
         where: { id: booking.id },
-        data: {
-          deletedAt: new Date(),
-          reviewedByUserId: adminUserId,
-          idempotencyKey: null,
-        },
       });
     });
   }
