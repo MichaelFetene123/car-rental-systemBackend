@@ -19,6 +19,7 @@ export class CreateUserDto {
   phone?: string;
 }
 
+
 export class LoginUserDto {
   @IsEmail()
   @MaxLength(255)

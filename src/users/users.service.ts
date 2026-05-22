@@ -8,8 +8,8 @@ import {
 import { PrismaService } from '../prisma.service';
 import {
   CreateUserDto,
-  UserResponseDto,
   publicUserSelect,
+  UserResponseDto,
 } from './dto/createUser.dto';
 import { UpdateProfileDto } from './dto/updateProfile.dto';
 import { ChangePasswordDto } from './dto/updateProfile.dto';
@@ -37,7 +37,7 @@ export class UsersService {
       select: publicUserSelect,
     });
 
-    return user;
+    return user as UserResponseDto;
   }
 
   async findUserByEmailWithRoles(email: string) {
@@ -66,25 +66,83 @@ export class UsersService {
   async getProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: publicUserSelect,
+      select: {
+        id: true,
+        full_name: true,
+        email: true,
+        phone: true,
+        status: true,
+        created_at: true,
+        updated_at: true,
+        _count: {
+          select: { bookings: true },
+        },
+        userRoles: {
+          select: {
+            role: {
+              select: { name: true },
+            },
+          },
+        },
+      },
     });
 
     if (!user) {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
     }
 
-    return user;
+    return {
+      id: user.id,
+      name: user.full_name,
+      email: user.email,
+      phone: user.phone,
+      status: user.status,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at,
+      totalBookings: user._count.bookings,
+      roles: user.userRoles.map((userRole) => userRole.role.name),
+    };
   }
 
   async updateProfile(userId: string, updateProfileDto: UpdateProfileDto) {
-    return this.prisma.user.update({
+    const user = await this.prisma.user.update({
       where: { id: userId },
       data: {
         full_name: updateProfileDto.full_name,
         phone: updateProfileDto.phone,
       },
-      select: publicUserSelect,
+      select: {
+        id: true,
+        full_name: true,
+        email: true,
+        phone: true,
+        status: true,
+        created_at: true,
+        updated_at: true,
+        _count: {
+          select: { bookings: true },
+        },
+        userRoles: {
+          select: {
+            role: {
+              select: { name: true },
+            },
+          },
+        },
+      },
     });
+
+    return {
+      id: user.id,
+      name: user.full_name,
+      email: user.email,
+      phone: user.phone,
+      status: user.status,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at,
+      totalBookings: user._count.bookings,
+      roles: user.userRoles.map((userRole) => userRole.role.name),
+    };
   }
 
   async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {

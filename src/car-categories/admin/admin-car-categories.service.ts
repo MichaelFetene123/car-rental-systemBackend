@@ -65,6 +65,40 @@ export class AdminCarCategoriesService {
       }
     }
 
+    // Check for active bookings when deactivating category
+    if (
+      typeof dto.isActive === 'boolean' &&
+      !dto.isActive &&
+      category.isActive
+    ) {
+      const bookedCars = await this.prisma.booking.findMany({
+        where: {
+          car: {
+            categoryId: id,
+          },
+          status: {
+            in: ['approved', 'active', 'pending'],
+          },
+        },
+        select: {
+          id: true,
+          car: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      if (bookedCars.length > 0) {
+        throw new HttpException(
+          `Category has booked cars: ${bookedCars.map((b) => b.car.name).join(', ')}`,
+          HttpStatus.CONFLICT,
+        );
+      }
+    }
+
     return this.prisma.carCategory.update({
       where: { id },
       data: {

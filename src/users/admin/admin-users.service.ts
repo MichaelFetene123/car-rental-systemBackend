@@ -19,11 +19,27 @@ export class AdminUsersService {
   constructor(private prisma: PrismaService) {}
 
   async getAllUsers() {
-    return this.prisma.user.findMany({
-      include: {
+    const users = await this.prisma.user.findMany({
+      select: {
+        id: true,
+        full_name: true,
+        email: true,
+        phone: true,
+        status: true,
+        created_at: true,
+        updated_at: true,
         userRoles: {
-          include: {
-            role: true,
+          select: {
+            role: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            bookings: true,
           },
         },
       },
@@ -31,6 +47,18 @@ export class AdminUsersService {
         created_at: 'desc',
       },
     });
+
+    return users.map((user) => ({
+      id: user.id,
+      name: user.full_name,
+      email: user.email,
+      phone: user.phone,
+      status: user.status,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at,
+      totalBookings: user._count.bookings,
+      roles: user.userRoles.map((userRole) => userRole.role.name),
+    }));
   }
 
   async createUserByAdmin(

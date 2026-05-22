@@ -133,6 +133,7 @@ export class BookingsService {
 
       const car = await tx.car.findUnique({
         where: { id: dto.carId },
+        include: { category: true },
       });
 
       if (!car) {
@@ -142,6 +143,12 @@ export class BookingsService {
       if (car.status === 'maintenance') {
         throw new BadRequestException(
           'Car is currently under maintenance and cannot be booked',
+        );
+      }
+
+      if (car.category && !car.category.isActive) {
+        throw new BadRequestException(
+          'This car category is currently inactive and cannot be booked',
         );
       }
 
