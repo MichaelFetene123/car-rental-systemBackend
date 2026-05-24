@@ -113,6 +113,21 @@ export class BookingsService {
     const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000);
 
     return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { status: true },
+      });
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      if (user.status === 'suspended') {
+        throw new ForbiddenException(
+          'Your account is suspended. Booking is unavailable.',
+        );
+      }
+
       if (dto.idempotencyKey) {
         const existing = await tx.booking.findFirst({
           where: {

@@ -53,6 +53,8 @@ export class AuthService {
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) throw new UnauthorizedException();
 
+    await this.usersService.touchUserActivity(user.id);
+
     // ✅ map DB role.type → Role enum
     const roles: Role[] = user.userRoles.map((ur) => ur.role.type as Role);
 

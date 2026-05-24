@@ -7,7 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
-import { PrismaService } from '../../prisma.service';
+import { UsersService } from '../../users/users.service';
 
 import { IS_PUBLIC_KEY } from '../decorator/public.decorator';
 import { jwtConstants } from '../constants';
@@ -18,7 +18,7 @@ export class AuthGuard implements CanActivate {
   constructor(
     private jwtService: JwtService,
     private reflector: Reflector,
-    private prisma: PrismaService,
+    private usersService: UsersService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -31,6 +31,8 @@ export class AuthGuard implements CanActivate {
 
       this.validatePayload(payload);
       await this.validateTokenVersion(payload);
+
+      await this.usersService.touchUserActivity(payload.sub);
 
       (request as any).user = payload;
 
@@ -81,10 +83,7 @@ export class AuthGuard implements CanActivate {
   }
 
   private async validateTokenVersion(payload: JwtPayload) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
-      select: { tokenVersion: true },
-    });
+    const user = await this.usersService.getTokenVersion(payload.sub);
 
     if (!user) {
       throw new UnauthorizedException('User not found');

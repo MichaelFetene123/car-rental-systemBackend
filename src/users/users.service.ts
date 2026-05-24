@@ -26,6 +26,8 @@ export class UsersService {
         email: createUserDto.email,
         password: createUserDto.password, // already hashed in AuthService
         phone: createUserDto.phone,
+        status: 'active',
+        last_active_at: new Date(),
         userRoles: {
           create: {
             role: {
@@ -38,6 +40,50 @@ export class UsersService {
     });
 
     return user as UserResponseDto;
+  }
+
+  async touchUserActivity(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { status: true },
+    });
+
+    if (!user) {
+      return;
+    }
+
+    await this.prisma.user.updateMany({
+      where: { id: userId },
+      data: {
+        last_active_at: new Date(),
+        ...(user.status === 'inactive' ? { status: 'active' } : {}),
+      },
+    });
+  }
+
+  async getTokenVersion(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { tokenVersion: true },
+    });
+  }
+
+  async markInactiveUsers(cutoff: Date) {
+    return this.prisma.user.updateMany({
+      where: {
+        OR: [
+          { last_active_at: { lt: cutoff } },
+          {
+            last_active_at: null,
+            created_at: { lt: cutoff },
+          },
+        ],
+        status: 'active',
+      },
+      data: {
+        status: 'inactive',
+      },
+    });
   }
 
   async findUserByEmailWithRoles(email: string) {

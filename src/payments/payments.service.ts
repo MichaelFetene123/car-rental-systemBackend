@@ -29,6 +29,21 @@ export class PaymentsService {
       );
     }
 
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { status: true },
+    });
+
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (user.status === 'suspended') {
+      throw new ForbiddenException(
+        'Your account is suspended. Booking is unavailable.',
+      );
+    }
+
     const pendingBookings = await this.prisma.booking.findMany({
       where: {
         userId,

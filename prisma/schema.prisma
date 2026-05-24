@@ -15,6 +15,7 @@ model User {
   password         String            @db.VarChar(255)
   phone            String?           @db.VarChar(30)
   status           String            @default("active") @db.VarChar(20)
+  last_active_at   DateTime?         @map("last_active_at") @db.Timestamp(6)
   tokenVersion     Int               @default(0) @map("token_version")
   total_bookings   Int?              @default(0)
   created_at       DateTime          @default(now())

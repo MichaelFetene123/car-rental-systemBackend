@@ -13,7 +13,6 @@ import { RolesService } from './role-and-permission/roles/roles.service';
 import { RolesController } from './role-and-permission/roles/roles.controller';
 import { RolesModule } from './role-and-permission/roles/roles.module';
 import { PermissionsModule } from './role-and-permission/permissions/permissions.module';
-import { UserRolesModule } from './user-roles/user-roles.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { PaymentsModule } from './payments/payments.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -32,7 +31,6 @@ import { ScheduleModule } from '@nestjs/schedule';
     CarCategoriesModule,
     RolesModule,
     PermissionsModule,
-    UserRolesModule,
     BookingsModule,
     PaymentsModule,
     NotificationsModule,

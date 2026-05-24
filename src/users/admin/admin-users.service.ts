@@ -72,6 +72,8 @@ export class AdminUsersService {
         email: createUserDto.email,
         password: hashedPassword,
         phone: createUserDto.phone,
+        status: createUserDto.status ?? 'active',
+        last_active_at: new Date(),
         userRoles: {
           create: {
             role: {
@@ -107,6 +109,7 @@ export class AdminUsersService {
         full_name: updateUserDto.full_name,
         email: updateUserDto.email,
         phone: updateUserDto.phone,
+        status: updateUserDto.status,
         ...(password && { password }),
       },
     });
@@ -153,6 +156,6 @@ export class AdminUsersService {
       skipDuplicates: true,
     });
 
-    return { message: 'Roles updated successfully' };
+    return { message: 'Roles updated successfullyyy' };
   }
 }

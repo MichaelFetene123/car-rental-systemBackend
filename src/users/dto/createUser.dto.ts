@@ -17,6 +17,11 @@ export class CreateUserDto {
   @IsString()
   @MaxLength(30)
   phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  status?: string;
 }
 
 
