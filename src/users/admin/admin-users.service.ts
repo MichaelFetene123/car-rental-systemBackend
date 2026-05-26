@@ -12,6 +12,7 @@ import {
   HttpStatus,
   Injectable,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 
 @Injectable()
@@ -20,6 +21,15 @@ export class AdminUsersService {
 
   async getAllUsers() {
     const users = await this.prisma.user.findMany({
+      where: {
+        userRoles: {
+          none: {
+            role: {
+              name: Role.Admin,
+            },
+          },
+        },
+      },
       select: {
         id: true,
         full_name: true,
@@ -132,6 +142,9 @@ export class AdminUsersService {
   }
 
   async assignRoles(userId: string, roles: Role[]) {
+    if (roles.includes(Role.Admin)) {
+      throw new ForbiddenException('Admin role assignment is not allowed');
+    }
     // Delete existing roles for the user
     await this.prisma.userRole.deleteMany({
       where: { userId },

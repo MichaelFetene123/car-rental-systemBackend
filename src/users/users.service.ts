@@ -107,6 +107,182 @@ export class UsersService {
     });
   }
 
+  async getAllUsers() {
+    const users = await this.prisma.user.findMany({
+      select: {
+        id: true,
+        full_name: true,
+        email: true,
+        phone: true,
+        status: true,
+        created_at: true,
+        updated_at: true,
+        userRoles: {
+          select: {
+            role: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            bookings: true,
+          },
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    return users.map((user) => ({
+      id: user.id,
+      name: user.full_name,
+      email: user.email,
+      phone: user.phone,
+      status: user.status,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at,
+      totalBookings: user._count.bookings,
+      roles: user.userRoles.map((userRole) => userRole.role.name),
+    }));
+  }
+
+  async findUserById(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        full_name: true,
+        email: true,
+        phone: true,
+        status: true,
+        created_at: true,
+        updated_at: true,
+        userRoles: {
+          select: {
+            role: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            bookings: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      id: user.id,
+      name: user.full_name,
+      email: user.email,
+      phone: user.phone,
+      status: user.status,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at,
+      totalBookings: user._count.bookings,
+      roles: user.userRoles.map((userRole) => userRole.role.name),
+    };
+  }
+
+  async findUserByEmail(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        full_name: true,
+        email: true,
+        phone: true,
+        status: true,
+        created_at: true,
+        updated_at: true,
+        userRoles: {
+          select: {
+            role: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            bookings: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      id: user.id,
+      name: user.full_name,
+      email: user.email,
+      phone: user.phone,
+      status: user.status,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at,
+      totalBookings: user._count.bookings,
+      roles: user.userRoles.map((userRole) => userRole.role.name),
+    };
+  }
+
+  async updateUser(id: string, data: Partial<CreateUserDto>) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    let password: string | undefined;
+
+    if (data.password) {
+      password = await bcrypt.hash(data.password, 10);
+    }
+
+    return this.prisma.user.update({
+      where: { id },
+      data: {
+        full_name: data.full_name,
+        email: data.email,
+        phone: data.phone,
+        status: data.status,
+        ...(password && { password }),
+      },
+    });
+  }
+
+  async deleteUser(id: string): Promise<void | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    await this.prisma.user.delete({
+      where: { id },
+    });
+
+    return null;
+  }
+
   // ---------------- PROFILE ----------------
 
   async getProfile(userId: string) {
@@ -151,10 +327,22 @@ export class UsersService {
   }
 
   async updateProfile(userId: string, updateProfileDto: UpdateProfileDto) {
+    if (updateProfileDto.email) {
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email: updateProfileDto.email },
+        select: { id: true },
+      });
+
+      if (existingUser && existingUser.id !== userId) {
+        throw new HttpException('Email already in use', HttpStatus.CONFLICT);
+      }
+    }
+
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: {
         full_name: updateProfileDto.full_name,
+        email: updateProfileDto.email,
         phone: updateProfileDto.phone,
       },
       select: {

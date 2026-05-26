@@ -37,6 +37,9 @@ describe('BookingsService', () => {
     const existing = { id: 'booking-1', bookingCode: 'BK-1' };
 
     const tx = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ status: 'active' }),
+      },
       booking: {
         findFirst: jest.fn().mockResolvedValue(existing),
       },
@@ -64,6 +67,9 @@ describe('BookingsService', () => {
     };
 
     const tx = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ status: 'active' }),
+      },
       booking: {
         findFirst: jest.fn().mockResolvedValueOnce(null),
         findMany: jest.fn().mockResolvedValue([]),
@@ -131,7 +137,7 @@ describe('BookingsService', () => {
           status: 'expired',
           deletedAt: null,
         }),
-        update: jest.fn().mockResolvedValue(deletedBooking),
+        delete: jest.fn().mockResolvedValue(deletedBooking),
       },
     };
 
@@ -145,22 +151,13 @@ describe('BookingsService', () => {
       'booking-expired',
     );
 
-    const bookingUpdateMock = tx.booking.update as jest.Mock<
+    const bookingDeleteMock = tx.booking.delete as jest.Mock<
       unknown,
-      [
-        {
-          where: { id: string };
-          data: { reviewedByUserId: string; idempotencyKey: string | null };
-        },
-      ]
+      [{ where: { id: string } }]
     >;
-    expect(bookingUpdateMock).toHaveBeenCalledTimes(1);
-    expect(bookingUpdateMock.mock.calls[0]?.[0]).toMatchObject({
+    expect(bookingDeleteMock).toHaveBeenCalledTimes(1);
+    expect(bookingDeleteMock.mock.calls[0]?.[0]).toMatchObject({
       where: { id: 'booking-expired' },
-      data: {
-        reviewedByUserId: 'admin-1',
-        idempotencyKey: null,
-      },
     });
     expect(result).toEqual(deletedBooking);
   });
@@ -204,7 +201,7 @@ describe('BookingsService', () => {
           status: 'cancelled',
           deletedAt: null,
         }),
-        update: jest.fn().mockResolvedValue(deletedBooking),
+        delete: jest.fn().mockResolvedValue(deletedBooking),
       },
     };
 
@@ -218,22 +215,13 @@ describe('BookingsService', () => {
       'booking-cancelled',
     );
 
-    const cancelledDeleteUpdateMock = tx.booking.update as jest.Mock<
+    const cancelledDeleteMock = tx.booking.delete as jest.Mock<
       unknown,
-      [
-        {
-          where: { id: string };
-          data: { reviewedByUserId: string; idempotencyKey: string | null };
-        },
-      ]
+      [{ where: { id: string } }]
     >;
-    expect(cancelledDeleteUpdateMock).toHaveBeenCalledTimes(1);
-    expect(cancelledDeleteUpdateMock.mock.calls[0]?.[0]).toMatchObject({
+    expect(cancelledDeleteMock).toHaveBeenCalledTimes(1);
+    expect(cancelledDeleteMock.mock.calls[0]?.[0]).toMatchObject({
       where: { id: 'booking-cancelled' },
-      data: {
-        reviewedByUserId: 'admin-1',
-        idempotencyKey: null,
-      },
     });
     expect(result).toEqual(deletedBooking);
   });
@@ -590,5 +578,91 @@ describe('BookingsService', () => {
       'Only unpaid pending bookings can be cancelled manually by admins',
     );
     expect(tx.booking.update).not.toHaveBeenCalled();
+  });
+
+  it('returns overlap conflicts with overlap conflictType', async () => {
+    const pickup = new Date('2026-05-20T10:00:00Z');
+    const returnDate = new Date('2026-05-22T10:00:00Z');
+
+    const tx = {
+      booking: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'booking-1',
+            bookingCode: 'BK-1',
+            pickupAt: new Date('2026-05-19T10:00:00Z'),
+            returnAt: new Date('2026-05-21T10:00:00Z'),
+            status: 'approved',
+          },
+        ]),
+      },
+    };
+
+    const conflicts = await (
+      service as unknown as {
+        findConflicts: (
+          client: unknown,
+          params: {
+            carId: string;
+            pickup: Date;
+            returnDate: Date;
+            excludeBookingId?: string;
+          },
+        ) => Promise<unknown[]>;
+      }
+    ).findConflicts(tx, {
+      carId: 'car-1',
+      pickup,
+      returnDate,
+    });
+
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]).toMatchObject({
+      id: 'booking-1',
+      conflictType: 'overlap',
+    });
+  });
+
+  it('queries overlapping pending, approved, and active bookings', async () => {
+    const pickup = new Date('2026-05-20T10:00:00Z');
+    const returnDate = new Date('2026-05-22T10:00:00Z');
+
+    const findMany = jest.fn().mockResolvedValue([]);
+    const tx = {
+      booking: {
+        findMany,
+      },
+    };
+
+    await (
+      service as unknown as {
+        findConflicts: (
+          client: unknown,
+          params: {
+            carId: string;
+            pickup: Date;
+            returnDate: Date;
+            excludeBookingId?: string;
+          },
+        ) => Promise<unknown[]>;
+      }
+    ).findConflicts(tx, {
+      carId: 'car-1',
+      pickup,
+      returnDate,
+      excludeBookingId: 'booking-2',
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          carId: 'car-1',
+          status: { in: ['pending', 'approved', 'active'] },
+          pickupAt: { lt: returnDate },
+          returnAt: { gt: pickup },
+          id: { not: 'booking-2' },
+        }),
+      }),
+    );
   });
 });

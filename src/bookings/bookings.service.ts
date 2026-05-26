@@ -36,8 +36,12 @@ import { UpdateBookingDto } from './dto/update-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-status.dto';
 
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
-const BUFFER_IN_MS = DAY_IN_MS;
 const BLOCKING_BOOKING_STATUSES: BookingStatus[] = ['approved', 'active'];
+const CONFLICT_BOOKING_STATUSES: BookingStatus[] = [
+  'pending',
+  'approved',
+  'active',
+];
 const REFUND_VERIFY_PAYMENT_STATUSES: PaymentStatus[] = [
   'refund_initiated',
   'refund_processing',
@@ -55,7 +59,7 @@ type BookingConflict = {
   pickupAt: Date;
   returnAt: Date;
   status: BookingStatus;
-  conflictType: 'overlap' | 'buffer_violation';
+  conflictType: 'overlap';
 };
 
 @Injectable()
@@ -175,7 +179,20 @@ export class BookingsService {
 
       if (conflicts.length > 0) {
         throw new BadRequestException(
-          'The selected dates conflict with an approved or active booking (including 1-day buffer)',
+          'The selected dates conflict with an existing booking',
+        );
+      }
+
+      const sameDayBooking = await this.findSameDayUserBooking(tx, {
+        userId,
+        carId: dto.carId,
+        pickup,
+        returnDate,
+      });
+
+      if (sameDayBooking) {
+        throw new BadRequestException(
+          'This car is already booked for the selected day.',
         );
       }
 
@@ -372,7 +389,7 @@ export class BookingsService {
 
       if (conflicts.length > 0) {
         throw new BadRequestException(
-          'Selected date range conflicts with existing approved/active bookings',
+          'Selected date range conflicts with existing bookings',
         );
       }
 
@@ -775,7 +792,21 @@ export class BookingsService {
 
       if (conflicts.length > 0) {
         throw new BadRequestException(
-          'Booking cannot be approved because of overlap or 1-day buffer conflict',
+          'Booking cannot be approved because of overlapping dates',
+        );
+      }
+
+      const sameDayBooking = await this.findSameDayUserBooking(tx, {
+        userId: booking.userId,
+        carId: booking.carId,
+        pickup: booking.pickupAt,
+        returnDate: booking.returnAt,
+        excludeBookingId: booking.id,
+      });
+
+      if (sameDayBooking) {
+        throw new BadRequestException(
+          'This car is already booked for the selected day.',
         );
       }
 
@@ -1436,6 +1467,74 @@ export class BookingsService {
     return `INV-${bookingCode.slice(0, 12)}-${randomUUID().slice(0, 8)}`;
   }
 
+  private buildUtcDayRange(date: Date) {
+    const start = new Date(
+      Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate(),
+        0,
+        0,
+        0,
+        0,
+      ),
+    );
+    const end = new Date(
+      Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate(),
+        23,
+        59,
+        59,
+        999,
+      ),
+    );
+
+    return { start, end };
+  }
+
+  private async findSameDayUserBooking(
+    tx: Prisma.TransactionClient | PrismaService,
+    params: {
+      userId: string;
+      carId: string;
+      pickup: Date;
+      returnDate: Date;
+      excludeBookingId?: string;
+    },
+  ) {
+    const pickupRange = this.buildUtcDayRange(params.pickup);
+    const returnRange = this.buildUtcDayRange(params.returnDate);
+    const ranges = [pickupRange];
+
+    if (pickupRange.start.getTime() !== returnRange.start.getTime()) {
+      ranges.push(returnRange);
+    }
+
+    const dateConditions = ranges.flatMap((range) => [
+      { pickupAt: { gte: range.start, lte: range.end } },
+      { returnAt: { gte: range.start, lte: range.end } },
+    ]);
+
+    const where: Prisma.BookingWhereInput = {
+      userId: params.userId,
+      carId: params.carId,
+      deletedAt: null,
+      status: { in: ['pending', 'approved', 'active'] },
+      OR: dateConditions,
+    };
+
+    if (params.excludeBookingId) {
+      where.id = { not: params.excludeBookingId };
+    }
+
+    return tx.booking.findFirst({
+      where,
+      select: { id: true },
+    });
+  }
+
   private async findConflicts(
     tx: Prisma.TransactionClient | PrismaService,
     params: {
@@ -1445,14 +1544,11 @@ export class BookingsService {
       excludeBookingId?: string;
     },
   ): Promise<BookingConflict[]> {
-    const windowStart = new Date(params.pickup.getTime() - BUFFER_IN_MS);
-    const windowEnd = new Date(params.returnDate.getTime() + BUFFER_IN_MS);
-
     const where: Prisma.BookingWhereInput = {
       carId: params.carId,
-      status: { in: BLOCKING_BOOKING_STATUSES },
-      pickupAt: { lt: windowEnd },
-      returnAt: { gt: windowStart },
+      status: { in: CONFLICT_BOOKING_STATUSES },
+      pickupAt: { lt: params.returnDate },
+      returnAt: { gt: params.pickup },
     };
 
     if (params.excludeBookingId) {
@@ -1471,34 +1567,10 @@ export class BookingsService {
       orderBy: { pickupAt: 'asc' },
     });
 
-    return candidates
-      .map((candidate) => {
-        const overlap =
-          params.pickup < candidate.returnAt &&
-          params.returnDate > candidate.pickupAt;
-
-        if (overlap) {
-          return {
-            ...candidate,
-            conflictType: 'overlap' as const,
-          };
-        }
-
-        const gapMs =
-          params.returnDate <= candidate.pickupAt
-            ? candidate.pickupAt.getTime() - params.returnDate.getTime()
-            : params.pickup.getTime() - candidate.returnAt.getTime();
-
-        if (gapMs < BUFFER_IN_MS) {
-          return {
-            ...candidate,
-            conflictType: 'buffer_violation' as const,
-          };
-        }
-
-        return null;
-      })
-      .filter((item): item is BookingConflict => Boolean(item));
+    return candidates.map((candidate) => ({
+      ...candidate,
+      conflictType: 'overlap' as const,
+    }));
   }
 
   private async getBookingPaymentSummary(
