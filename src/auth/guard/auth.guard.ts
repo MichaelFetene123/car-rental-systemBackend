@@ -8,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { UsersService } from '../../users/users.service';
+import { Role } from '../../common/enums/role.enum';
 
 import { IS_PUBLIC_KEY } from '../decorator/public.decorator';
 import { jwtConstants } from '../constants';
@@ -73,7 +74,9 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid token: roles missing');
     }
 
-    if (!Array.isArray(payload.permissions)) {
+    const isAdmin = payload.roles.includes(Role.Admin);
+
+    if (!isAdmin && !Array.isArray(payload.permissions)) {
       throw new UnauthorizedException('Invalid token: permissions missing');
     }
 

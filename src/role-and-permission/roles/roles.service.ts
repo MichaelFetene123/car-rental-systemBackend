@@ -8,6 +8,8 @@ import { CreateRoleDto } from '../dto/createRole.dto';
 import { UpdateRoleDto } from '../dto/updateRole.dto';
 import { Role } from '../../common/enums/role.enum';
 
+const DEFAULT_ROLE_NAMES = new Set(['admin', 'stuff', 'user']);
+
 @Injectable()
 export class RolesService {
   constructor(private prisma: PrismaService) {}
@@ -70,7 +72,10 @@ export class RolesService {
     const role = await this.prisma.role.findUnique({ where: { id } });
     if (!role) throw new NotFoundException();
 
-    if (role.type === Role.Admin) throw new ForbiddenException();
+    const roleName = role.name.trim().toLowerCase();
+    if (DEFAULT_ROLE_NAMES.has(roleName)) {
+      throw new ForbiddenException('Default system roles cannot be deleted.');
+    }
 
     return this.prisma.role.delete({ where: { id } });
   }
