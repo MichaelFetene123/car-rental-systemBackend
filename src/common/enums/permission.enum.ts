@@ -5,6 +5,9 @@ export enum PermissionType {
   MANAGE_CARS = 'manage_cars',
   VIEW_CARS = 'view_cars',
 
+  MANAGE_CATEGORY = 'manage_category',
+  VIEW_CATEGORY = 'view_category',
+
   MANAGE_BOOKINGS = 'manage_bookings',
   VIEW_BOOKINGS = 'view_bookings',
   CANCEL_BOOKINGS = 'cancel_bookings',
@@ -18,6 +21,9 @@ export enum PermissionType {
   MANAGE_LOCATIONS = 'manage_locations',
 
   MANAGE_ROLES = 'manage_roles',
+
+  MANAGE_REPORT = 'manage_report',
+  VIEW_REPORT = 'view_report',
 
   MANAGE_NOTIFICATIONS = 'manage_notifications',
 }

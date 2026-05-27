@@ -14,42 +14,42 @@ export class NotificationsController {
   constructor(private readonly service: NotificationsService) {}
 
   @Post('send')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(PermissionType.MANAGE_NOTIFICATIONS)
   sendBulk(@Body() dto: SendBulkNotificationDto) {
     return this.service.sendBulk(dto);
   }
 
   @Post('settings/email')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(PermissionType.MANAGE_NOTIFICATIONS)
   updateEmail(@Body() dto: UpdateEmailSettingsDto) {
     return this.service.updateEmailSettings(dto);
   }
 
   @Post('settings/sms')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(PermissionType.MANAGE_NOTIFICATIONS)
   updateSms(@Body() dto: UpdateSmsSettingsDto) {
     return this.service.updateSmsSettings(dto);
   }
 
   @Get('settings')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(PermissionType.MANAGE_NOTIFICATIONS)
   getSettings() {
     return this.service.getSettings();
   }
 
   @Get('logs')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(PermissionType.MANAGE_NOTIFICATIONS)
   getLogs(@Query() query: QueryLogsDto) {
     return this.service.getLogs(query);
   }
 
   @Get('stats')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(PermissionType.MANAGE_NOTIFICATIONS)
   getStats() {
     return this.service.getStats();

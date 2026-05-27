@@ -1,4 +1,3 @@
-// admin/users.controller.ts
 import {
   Controller,
   Patch,
@@ -10,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { UsersService } from '../users.service';
 import { Roles } from '../../auth/decorator/roles.decorator';
+import { RequirePermission } from '../../auth/decorator/permission.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { CreateUserDto } from '../dto/createUser.dto';
 import { UpdateUserDto } from '../dto/updateUser.dto';
@@ -20,19 +20,22 @@ export class AdminUsersController {
   constructor(private readonly adminUsersService: AdminUsersService) {}
 
   @Get()
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
+  @RequirePermission('view_users')
   async getUsers() {
     return this.adminUsersService.getAllUsers();
   }
 
   @Post()
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
+  @RequirePermission('manage_users')
   async createUser(@Body() createUserDto: CreateUserDto) {
     return this.adminUsersService.createUserByAdmin(createUserDto);
   }
 
   @Patch(':id')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
+  @RequirePermission('manage_users')
   async updateUser(
     @Param('id') id: string,
     @Body() updateUserDto: UpdateUserDto,
@@ -42,6 +45,7 @@ export class AdminUsersController {
 
   @Delete(':id')
   @Roles(Role.Admin)
+  @RequirePermission('manage_users')
   async deleteUser(@Param('id') id: string) {
     return this.adminUsersService.deleteUserByAdmin(id);
   }

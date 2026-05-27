@@ -11,7 +11,7 @@ interface JwtUser {
 }
 
 @Controller('admin/bookings')
-@Roles(Role.Admin)
+@Roles(Role.Admin, Role.Staff)
 @RequirePermission(['manage_bookings'])
 export class AdminBookingsController {
   constructor(private readonly bookingsService: BookingsService) {}

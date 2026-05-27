@@ -19,7 +19,14 @@ export class PermissionGuard implements CanActivate {
     const user = request.user;
 
     // Admin bypasses permission checks
-    if (user?.roles && user.roles.includes(Role.Admin)) return true;
+    if (
+      user?.roles &&
+      user.roles.some(
+        (role: string) => role.toLowerCase() === Role.Admin.toLowerCase(),
+      )
+    ) {
+      return true;
+    }
 
     // No user or permissions → deny
     if (!user?.permissions) return false;

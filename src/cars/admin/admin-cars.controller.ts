@@ -74,14 +74,14 @@ export class AdminCarsController {
   }
 
   @Get()
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission('view_cars')
   async getAll() {
     return this.adminCarsService.getAllCars();
   }
 
   @Post()
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission('manage_cars')
   @UseInterceptors(imageUploadInterceptor)
   async create(
@@ -93,7 +93,7 @@ export class AdminCarsController {
   }
 
   @Patch(':id')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission('manage_cars')
   @UseInterceptors(imageUploadInterceptor)
   async update(

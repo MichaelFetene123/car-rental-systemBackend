@@ -2,12 +2,15 @@
 import { Controller, Get, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { Roles } from '../auth/decorator/roles.decorator';
+import { RequirePermission } from '../auth/decorator/permission.decorator';
 import { Role } from '../common/enums/role.enum';
+import { PermissionType } from '../common/enums/permission.enum';
 import { ReportsExportService } from './reports-export/reports.export.service';
 import { ReportsService } from './reports.service';
 import { QueryReportDto } from './dto/query-report.dto';
 
-@Roles(Role.Admin)
+@Roles(Role.Admin, Role.Staff)
+@RequirePermission(PermissionType.VIEW_REPORT)
 @Controller('reports')
 export class ReportsController {
   constructor(
@@ -41,6 +44,7 @@ export class ReportsController {
   }
 
   @Get('export')
+  @RequirePermission(PermissionType.MANAGE_REPORT)
   async exportReport(
     @Query() query: QueryReportDto,
     @Query('format') format: 'pdf' | 'csv',

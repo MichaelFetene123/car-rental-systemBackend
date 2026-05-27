@@ -47,7 +47,7 @@ export class BookingsController {
   }
 
   @Get()
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(['view_bookings'])
   getAll() {
     return this.service.getAllBookings();
@@ -68,35 +68,35 @@ export class BookingsController {
   }
 
   @Delete('admin/:id/expired')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(['manage_bookings'])
   deleteExpired(@Req() req: { user: JwtUser }, @Param('id') id: string) {
     return this.service.deleteExpiredBooking(req.user.sub, id);
   }
 
   @Delete('admin/:id/cancelled')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(['manage_bookings'])
   deleteCancelled(@Req() req: { user: JwtUser }, @Param('id') id: string) {
     return this.service.deleteCancelledBooking(req.user.sub, id);
   }
 
   @Delete('admin/:id/rejected')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(['manage_bookings'])
   deleteRejected(@Req() req: { user: JwtUser }, @Param('id') id: string) {
     return this.service.deleteRejectedBooking(req.user.sub, id);
   }
 
   @Delete('admin/:id/refunded')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(['manage_bookings'])
   deleteRefunded(@Req() req: { user: JwtUser }, @Param('id') id: string) {
     return this.service.deleteRefundedBooking(req.user.sub, id);
   }
 
   @Delete('admin/:id/completed')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(['manage_bookings'])
   deleteCompleted(@Req() req: { user: JwtUser }, @Param('id') id: string) {
     return this.service.deleteCompletedBooking(req.user.sub, id);
@@ -112,28 +112,28 @@ export class BookingsController {
   }
 
   @Get('admin/review-queue')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(['view_bookings'])
   getReviewQueue(@Query() query: AdminReviewQueueDto) {
     return this.service.getAdminReviewQueue(query);
   }
 
   @Patch('admin/approve')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(['manage_bookings'])
   approve(@Req() req: { user: JwtUser }, @Body() dto: AdminApproveBookingDto) {
     return this.service.approveBooking(req.user.sub, dto);
   }
 
   @Patch('admin/reject')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(['manage_bookings'])
   reject(@Req() req: { user: JwtUser }, @Body() dto: AdminRejectBookingDto) {
     return this.service.rejectBooking(req.user.sub, dto);
   }
 
   @Patch('admin/:id/reject')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(['manage_bookings'])
   rejectById(
     @Req() req: { user: JwtUser },
@@ -148,7 +148,7 @@ export class BookingsController {
   }
 
   @Patch('admin/:id/refund')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(['manage_bookings'])
   processRefund(
     @Param('id') id: string,
@@ -163,14 +163,14 @@ export class BookingsController {
   }
 
   @Patch('admin/pickup')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(['manage_bookings'])
   pickup(@Req() req: { user: JwtUser }, @Body() dto: AdminPickupBookingDto) {
     return this.service.markBookingPickup(req.user.sub, dto);
   }
 
   @Patch('admin/complete')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(['manage_bookings'])
   complete(
     @Req() req: { user: JwtUser },
@@ -180,21 +180,21 @@ export class BookingsController {
   }
 
   @Patch('admin/no-show')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(['manage_bookings'])
   noShow(@Req() req: { user: JwtUser }, @Body() dto: AdminNoShowBookingDto) {
     return this.service.markBookingNoShow(req.user.sub, dto);
   }
 
   @Patch('admin/inspection')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(['manage_bookings'])
   inspect(@Req() req: { user: JwtUser }, @Body() dto: AdminInspectBookingDto) {
     return this.service.inspectCompletedBooking(req.user.sub, dto);
   }
 
   @Patch('admin/cancel-unpaid')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(['manage_bookings'])
   cancelUnpaid(
     @Req() req: { user: JwtUser },
@@ -204,7 +204,7 @@ export class BookingsController {
   }
 
   @Patch('status')
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Staff)
   @RequirePermission(['manage_bookings'])
   updateStatus(
     @Req() req: { user: JwtUser },

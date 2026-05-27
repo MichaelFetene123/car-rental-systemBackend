@@ -51,7 +51,7 @@ export class RolesService {
     const role = await this.prisma.role.findUnique({ where: { id } });
     if (!role) throw new NotFoundException();
 
-    return this.prisma.role.update({
+    const updatedRole = await this.prisma.role.update({
       where: { id },
       data: {
         name: dto.name,
@@ -66,6 +66,22 @@ export class RolesService {
           : undefined,
       },
     });
+
+    // Bump tokenVersion for all users with this role so they refresh permissions immediately
+    if (dto.permissionIds) {
+      await this.prisma.user.updateMany({
+        where: {
+          userRoles: {
+            some: { roleId: id },
+          },
+        },
+        data: {
+          tokenVersion: { increment: 1 },
+        },
+      });
+    }
+
+    return updatedRole;
   }
 
   async deleteRole(id: string) {

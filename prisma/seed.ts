@@ -45,6 +45,16 @@ async function main() {
         category: 'cars',
       },
       {
+        code: PermissionType.MANAGE_CATEGORY,
+        name: 'Manage Category',
+        category: 'categories',
+      },
+      {
+        code: PermissionType.VIEW_CATEGORY,
+        name: 'View Category',
+        category: 'categories',
+      },
+      {
         code: PermissionType.MANAGE_BOOKINGS,
         name: 'Manage Bookings',
         category: 'bookings',
@@ -90,6 +100,16 @@ async function main() {
         category: 'roles',
       },
       {
+        code: PermissionType.MANAGE_REPORT,
+        name: 'Manage Report',
+        category: 'reports',
+      },
+      {
+        code: PermissionType.VIEW_REPORT,
+        name: 'View Report',
+        category: 'reports',
+      },
+      {
         code: PermissionType.MANAGE_NOTIFICATIONS,
         name: 'Manage Notifications',
         category: 'notifications',
@@ -105,6 +125,8 @@ async function main() {
     stuff: [
       PermissionType.VIEW_DASHBOARD,
       PermissionType.VIEW_CARS,
+      PermissionType.VIEW_CATEGORY,
+      PermissionType.VIEW_REPORT,
       PermissionType.MANAGE_BOOKINGS,
       PermissionType.CANCEL_BOOKINGS,
       PermissionType.VIEW_BOOKINGS,

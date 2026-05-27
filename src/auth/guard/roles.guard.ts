@@ -21,7 +21,13 @@ export class RolesGuard implements CanActivate {
     if (!user?.roles) return false;
 
     // Admin bypasses role checks
-    if (user.roles.includes(Role.Admin)) return true;
+    if (
+      user.roles.some(
+        (role: string) => role.toLowerCase() === Role.Admin.toLowerCase(),
+      )
+    ) {
+      return true;
+    }
 
     return requiredRoles.some((role) => user.roles.includes(role));
   }
