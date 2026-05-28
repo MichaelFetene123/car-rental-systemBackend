@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   HttpException,
   HttpStatus,
@@ -178,7 +179,7 @@ export class BookingsService {
       });
 
       if (conflicts.length > 0) {
-        throw new BadRequestException(
+        throw new ConflictException(
           'The selected dates conflict with an existing booking',
         );
       }
@@ -191,7 +192,7 @@ export class BookingsService {
       });
 
       if (sameDayBooking) {
-        throw new BadRequestException(
+        throw new ConflictException(
           'This car is already booked for the selected day.',
         );
       }
@@ -791,7 +792,7 @@ export class BookingsService {
       });
 
       if (conflicts.length > 0) {
-        throw new BadRequestException(
+        throw new ConflictException(
           'Booking cannot be approved because of overlapping dates',
         );
       }
@@ -805,7 +806,7 @@ export class BookingsService {
       });
 
       if (sameDayBooking) {
-        throw new BadRequestException(
+        throw new ConflictException(
           'This car is already booked for the selected day.',
         );
       }

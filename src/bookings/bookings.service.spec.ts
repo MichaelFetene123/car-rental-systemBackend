@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BookingsService } from './bookings.service';
 import { PrismaService } from '../prisma.service';
@@ -119,6 +120,48 @@ describe('BookingsService', () => {
       },
     });
     expect(result).toEqual(createdBooking);
+  });
+
+  it('rejects same-day same-car booking conflicts with a conflict response', async () => {
+    const tx = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ status: 'active' }),
+      },
+      booking: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'booking-conflict' }),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      car: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'car-1',
+          status: 'available',
+          name: 'Sedan',
+          transmission: 'automatic',
+          year: 2024,
+          imageUrl: 'https://example.com/car.png',
+          pricePerDay: 100,
+        }),
+      },
+      $executeRaw: jest.fn(),
+    };
+
+    prisma.$transaction.mockImplementation(
+      async <TResult>(handler: (client: typeof tx) => Promise<TResult>) =>
+        handler(tx),
+    );
+
+    try {
+      await service.createBooking('user-1', baseDto);
+      throw new Error('Expected createBooking to reject with a conflict');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ConflictException);
+      if (error instanceof ConflictException) {
+        expect(error.getStatus()).toBe(409);
+        expect(error.getResponse()).toMatchObject({
+          message: 'This car is already booked for the selected day.',
+        });
+      }
+    }
   });
 
   it('allows admins to delete only expired bookings', async () => {

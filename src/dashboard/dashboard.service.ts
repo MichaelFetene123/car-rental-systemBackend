@@ -70,11 +70,17 @@ export class DashboardService {
 
   private async getRevenue(): Promise<number> {
     const result = await this.prisma.payment.aggregate({
-      _sum: { amount: true },
+      _sum: {
+        amount: true,
+        tax: true,
+        fees: true,
+      },
       where: { status: PaymentStatus.completed },
     });
 
-    return Number(result._sum?.amount ?? 0);
+    return Number(result._sum?.amount ?? 0)
+      + Number(result._sum?.tax ?? 0)
+      + Number(result._sum?.fees ?? 0);
   }
 
   // ================= CHARTS =================
@@ -88,23 +94,39 @@ export class DashboardService {
 
     const payments = await this.prisma.payment.findMany({
       where: { status: PaymentStatus.completed },
-      select: { amount: true, createdAt: true },
+      select: { amount: true, tax: true, fees: true, createdAt: true },
     });
 
-    const map = new Map<string, number>();
+    const map = new Map<
+      string,
+      { order: number; label: string; revenue: number }
+    >();
 
     for (const p of payments) {
-      const month = new Date(p.createdAt).toLocaleString('default', {
+      const date = new Date(p.createdAt);
+      const order = date.getFullYear() * 100 + date.getMonth() + 1;
+      const label = date.toLocaleString('default', {
         month: 'short',
+        year: 'numeric',
       });
+      const revenue =
+        Number(p.amount) + Number(p.tax ?? 0) + Number(p.fees ?? 0);
 
-      map.set(month, (map.get(month) || 0) + Number(p.amount));
+      const existing = map.get(label);
+      if (existing) {
+        existing.revenue += revenue;
+        continue;
+      }
+
+      map.set(label, { order, label, revenue });
     }
 
-    return Array.from(map.entries()).map(([month, revenue]) => ({
-      month,
-      revenue,
-    }));
+    return Array.from(map.values())
+      .sort((a, b) => a.order - b.order)
+      .map(({ label, revenue }) => ({
+        month: label,
+        revenue,
+      }));
   }
 
   private async getWeeklyBookings() {
