@@ -1,5 +1,6 @@
 import { Role } from '../../common/enums/role.enum';
 import { PrismaService } from '../../prisma.service';
+import { AuthService } from '../../auth/auth.service';
 import { UpdateUserDto } from '../dto/updateUser.dto';
 import {
   CreateUserDto,
@@ -17,7 +18,10 @@ import {
 
 @Injectable()
 export class AdminUsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private authService: AuthService,
+  ) {}
 
   async getAllUsers() {
     const users = await this.prisma.user.findMany({
@@ -169,6 +173,12 @@ export class AdminUsersService {
       skipDuplicates: true,
     });
 
-    return { message: 'Roles updated successfullyyy' };
+    // Bump tokenVersion to invalidate old tokens, then generate a new access token
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { tokenVersion: { increment: 1 } },
+    });
+
+    return this.authService.generateUserToken(userId);
   }
 }

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 
 import { AuthService } from './auth.service';
@@ -15,7 +15,7 @@ import { PermissionGuard } from './guard/permission.guard';
 
 @Module({
   imports: [
-    UsersModule,
+    forwardRef(() => UsersModule),
     JwtModule.register({
       global: true,
       secret: jwtConstants.accessSecret,
