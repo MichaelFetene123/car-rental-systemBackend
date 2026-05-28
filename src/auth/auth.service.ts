@@ -58,9 +58,15 @@ export class AuthService {
     // ✅ map DB role.type → Role enum
     const roles: Role[] = user.userRoles.map((ur) => ur.role.type as Role);
 
-    const permissions = user.userRoles.flatMap((ur) =>
-      ur.role.rolePermissions.map((rp) => rp.permission.code),
-    );
+    const permissions = user.userRoles.flatMap((ur) => {
+      const perms = ur.role.rolePermissions.map((rp) => rp.permission.code);
+      if (ur.role.type === Role.User) {
+        return perms.filter(
+          (p) => p !== 'view_dashboard' && p !== 'manage_roles',
+        );
+      }
+      return perms;
+    });
 
     return this.createAuthTokens({
       sub: user.id,
@@ -118,9 +124,15 @@ export class AuthService {
     }
 
     const roles: Role[] = user.userRoles.map((ur) => ur.role.type as Role);
-    const permissions = user.userRoles.flatMap((ur) =>
-      ur.role.rolePermissions.map((rp) => rp.permission.code),
-    );
+    const permissions = user.userRoles.flatMap((ur) => {
+      const perms = ur.role.rolePermissions.map((rp) => rp.permission.code);
+      if (ur.role.type === Role.User) {
+        return perms.filter(
+          (p) => p !== 'view_dashboard' && p !== 'manage_roles',
+        );
+      }
+      return perms;
+    });
 
     return this.createAuthTokens({
       sub: user.id,
@@ -173,9 +185,15 @@ export class AuthService {
 
     const roles = user.userRoles.map((ur) => ur.role.type);
 
-    const permissions = user.userRoles.flatMap((ur) =>
-      ur.role.rolePermissions.map((rp) => rp.permission.code),
-    );
+    const permissions = user.userRoles.flatMap((ur) => {
+      const perms = ur.role.rolePermissions.map((rp) => rp.permission.code);
+      if (ur.role.type === Role.User) {
+        return perms.filter(
+          (p) => p !== 'view_dashboard' && p !== 'manage_roles',
+        );
+      }
+      return perms;
+    });
 
     const payload: JwtPayload = {
       sub: user.id,

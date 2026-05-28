@@ -34,6 +34,12 @@ export class RolesService {
   }
 
   async createRole(dto: CreateRoleDto) {
+    if (dto.type === Role.User) {
+      throw new ForbiddenException(
+        'Cannot create roles with user type. User is a system-only role.',
+      );
+    }
+
     return this.prisma.role.create({
       data: {
         name: dto.name,
@@ -50,6 +56,15 @@ export class RolesService {
   async updateRole(id: string, dto: UpdateRoleDto) {
     const role = await this.prisma.role.findUnique({ where: { id } });
     if (!role) throw new NotFoundException();
+
+    const roleName = role.name.trim().toLowerCase();
+    if (roleName === 'user') {
+      throw new ForbiddenException('Cannot modify the default user role.');
+    }
+
+    if (dto.type === Role.User) {
+      throw new ForbiddenException('Cannot change role type to user.');
+    }
 
     const updatedRole = await this.prisma.role.update({
       where: { id },
