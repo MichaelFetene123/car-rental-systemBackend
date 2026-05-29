@@ -19,13 +19,13 @@ export class AdminPaymentQueryDto {
   @Type(() => Number)
   @IsNumber()
   @Min(1)
-  page?: number = 1;
+  page?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(1)
-  limit?: number = 20;
+  limit?: number;
 
   @IsOptional()
   @IsString()

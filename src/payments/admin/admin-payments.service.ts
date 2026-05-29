@@ -40,8 +40,8 @@ export class AdminPaymentsService {
 
   async findAll(query: AdminPaymentQueryDto) {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
-    const skip = (page - 1) * limit;
+    const limit = query.limit;
+    const skip = limit ? (page - 1) * limit : undefined;
 
     const where: Prisma.PaymentWhereInput = {};
 
@@ -114,8 +114,8 @@ export class AdminPaymentsService {
           },
         },
         orderBy,
-        skip,
-        take: limit,
+        ...(skip !== undefined ? { skip } : {}),
+        ...(limit !== undefined ? { take: limit } : {}),
       }),
       this.prisma.payment.count({ where }),
     ]);
@@ -145,8 +145,8 @@ export class AdminPaymentsService {
       meta: {
         total,
         page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+        limit: limit ?? total,
+        totalPages: limit ? Math.ceil(total / limit) : 1,
       },
     };
   }
