@@ -60,6 +60,98 @@ describe('BookingsService', () => {
     expect(tx.booking.findFirst).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects createBooking when pickup location is inactive', async () => {
+    const tx = {
+      user: { findUnique: jest.fn().mockResolvedValue({ status: 'active' }) },
+      booking: {
+        findFirst: jest.fn().mockResolvedValueOnce(null),
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest
+          .fn()
+          .mockResolvedValue({ id: 'booking-3', bookingCode: 'BK-3' }),
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 'booking-3', bookingCode: 'BK-3' }),
+      },
+      car: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'car-1',
+          status: 'available',
+          name: 'Sedan',
+          transmission: 'automatic',
+          year: 2024,
+          imageUrl: 'https://example.com/car.png',
+          pricePerDay: 100,
+        }),
+      },
+      payment: { create: jest.fn() },
+      bookingStatusTransition: { create: jest.fn() },
+      location: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 'pickup-1', isActive: false }),
+      },
+      $executeRaw: jest.fn(),
+    };
+
+    prisma.$transaction.mockImplementation(
+      async <TResult>(handler: (client: typeof tx) => Promise<TResult>) =>
+        handler(tx),
+    );
+
+    await expect(service.createBooking('user-1', baseDto)).rejects.toThrow(
+      'Pickup location is inactive and cannot be used for bookings',
+    );
+  });
+
+  it('rejects updateBooking when return location is inactive', async () => {
+    const tx = {
+      booking: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'booking-update-1',
+          userId: 'user-1',
+          status: 'pending',
+          carId: 'car-1',
+        }),
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn(),
+      },
+      payment: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      car: {
+        findUnique: jest.fn().mockResolvedValue({ pricePerDay: 120 }),
+      },
+      location: {
+        findUnique: jest
+          .fn()
+          .mockImplementation(({ where: { id } }) =>
+            id === 'return-1'
+              ? Promise.resolve({ id: 'return-1', isActive: false })
+              : Promise.resolve({ id: 'pickup-1', isActive: true }),
+          ),
+      },
+      $executeRaw: jest.fn(),
+    };
+
+    prisma.$transaction.mockImplementation(
+      async <TResult>(handler: (client: typeof tx) => Promise<TResult>) =>
+        handler(tx),
+    );
+
+    await expect(
+      service.updateBooking('user-1', {
+        bookingId: 'booking-update-1',
+        pickupAt: '2026-06-02T10:00:00.000Z',
+        returnAt: '2026-06-04T10:00:00.000Z',
+        pickupLocationId: 'pickup-1',
+        returnLocationId: 'return-1',
+      }),
+    ).rejects.toThrow(
+      'Return location is inactive and cannot be used for bookings',
+    );
+  });
+
   it('creates booking and pending payment when no idempotent match exists', async () => {
     const createdBooking = {
       id: 'booking-2',
@@ -97,6 +189,11 @@ describe('BookingsService', () => {
         create: jest.fn(),
       },
       $executeRaw: jest.fn(),
+      location: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 'pickup-1', isActive: true }),
+      },
     };
 
     prisma.$transaction.mockImplementation(
@@ -143,6 +240,11 @@ describe('BookingsService', () => {
         }),
       },
       $executeRaw: jest.fn(),
+      location: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 'pickup-1', isActive: true }),
+      },
     };
 
     prisma.$transaction.mockImplementation(
@@ -604,6 +706,11 @@ describe('BookingsService', () => {
             refundedAmount: 0,
           },
         ]),
+      },
+      location: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 'return-1', isActive: false }),
       },
       $executeRaw: jest.fn(),
     };

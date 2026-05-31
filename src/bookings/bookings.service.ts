@@ -153,7 +153,7 @@ export class BookingsService {
 
       const car = await tx.car.findUnique({
         where: { id: dto.carId },
-        include: { category: true },
+        include: { category: true, homeLocation: true },
       });
 
       if (!car) {
@@ -170,6 +170,41 @@ export class BookingsService {
         throw new BadRequestException(
           'This car category is currently inactive and cannot be booked',
         );
+      }
+
+      if (car.homeLocation && !car.homeLocation.isActive) {
+        throw new BadRequestException(
+          'Car is located at an inactive branch and cannot be booked',
+        );
+      }
+
+      // Validate provided pickup/return locations (existence and active)
+      if (dto.pickupLocationId) {
+        const pickupLocation = await tx.location.findUnique({
+          where: { id: dto.pickupLocationId },
+        });
+        if (!pickupLocation) {
+          throw new NotFoundException('Pickup location not found');
+        }
+        if (!pickupLocation.isActive) {
+          throw new BadRequestException(
+            'Pickup location is inactive and cannot be used for bookings',
+          );
+        }
+      }
+
+      if (dto.returnLocationId) {
+        const returnLocation = await tx.location.findUnique({
+          where: { id: dto.returnLocationId },
+        });
+        if (!returnLocation) {
+          throw new NotFoundException('Return location not found');
+        }
+        if (!returnLocation.isActive) {
+          throw new BadRequestException(
+            'Return location is inactive and cannot be used for bookings',
+          );
+        }
       }
 
       const conflicts = await this.findConflicts(tx, {
@@ -407,6 +442,35 @@ export class BookingsService {
         pickup,
         returnDate,
       );
+
+      // Validate provided pickup/return locations (existence and active) on update
+      if (dto.pickupLocationId) {
+        const pickupLocation = await tx.location.findUnique({
+          where: { id: dto.pickupLocationId },
+        });
+        if (!pickupLocation) {
+          throw new NotFoundException('Pickup location not found');
+        }
+        if (!pickupLocation.isActive) {
+          throw new BadRequestException(
+            'Pickup location is inactive and cannot be used for bookings',
+          );
+        }
+      }
+
+      if (dto.returnLocationId) {
+        const returnLocation = await tx.location.findUnique({
+          where: { id: dto.returnLocationId },
+        });
+        if (!returnLocation) {
+          throw new NotFoundException('Return location not found');
+        }
+        if (!returnLocation.isActive) {
+          throw new BadRequestException(
+            'Return location is inactive and cannot be used for bookings',
+          );
+        }
+      }
 
       const updatedBooking = await tx.booking.update({
         where: { id: booking.id },

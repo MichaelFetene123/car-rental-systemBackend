@@ -8,6 +8,14 @@ export class CarsService {
 
   async getAllCars() {
     const cars = await this.prisma.car.findMany({
+      where: {
+        AND: [
+          {
+            OR: [{ homeLocation: null }, { homeLocation: { isActive: true } }],
+          },
+          { OR: [{ category: null }, { category: { isActive: true } }] },
+        ],
+      },
       include: { category: true, homeLocation: true },
       orderBy: { createdAt: 'desc' },
     });

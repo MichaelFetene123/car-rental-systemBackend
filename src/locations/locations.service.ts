@@ -1,4 +1,9 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateLocationDto } from './dto/create-location.dto';
 import { UpdateLocationDto } from './dto/update-location.dto';
@@ -26,6 +31,64 @@ export class LocationsService {
   }
 
   async toggleStatus(id: string, isActive: boolean) {
+    if (!isActive) {
+      const [activeBookings, pendingBookings, ongoingRentals, activeVehicles] =
+        await Promise.all([
+          this.prisma.booking.count({
+            where: {
+              deletedAt: null,
+              status: 'approved',
+              OR: [{ pickupLocationId: id }, { returnLocationId: id }],
+            },
+          }),
+          this.prisma.booking.count({
+            where: {
+              deletedAt: null,
+              status: 'pending',
+              OR: [{ pickupLocationId: id }, { returnLocationId: id }],
+            },
+          }),
+          this.prisma.booking.count({
+            where: {
+              deletedAt: null,
+              status: 'active',
+              OR: [{ pickupLocationId: id }, { returnLocationId: id }],
+            },
+          }),
+          // Only consider cars that are actually in active use (rented).
+          // Cars that are merely `available` at a location should not block deactivation.
+          this.prisma.car.count({
+            where: {
+              homeLocationId: id,
+              status: { in: ['rented'] },
+            },
+          }),
+        ]);
+
+      const dependencyCounts = {
+        activeBookings,
+        pendingBookings,
+        ongoingRentals,
+        activeVehicles,
+      };
+
+      const totalDependencies = Object.values(dependencyCounts).reduce(
+        (sum, count) => sum + count,
+        0,
+      );
+
+      if (totalDependencies > 0) {
+        throw new BadRequestException(
+          {
+            message:
+              'Cannot deactivate location. Resolve active dependencies first.',
+            dependencies: dependencyCounts,
+            totalDependencies,
+          },
+        );
+      }
+    }
+
     return this.prisma.location.update({
       where: { id },
       data: { isActive },
