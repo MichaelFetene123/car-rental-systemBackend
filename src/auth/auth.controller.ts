@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   HttpException,
   HttpStatus,
   Req,
@@ -53,6 +54,12 @@ export class AuthController {
   @Get('me')
   me(@Req() req: { user: unknown }) {
     return req.user;
+  }
+
+  @Public()
+  @Get('confirm')
+  async confirmEmail(@Query('token') token: string) {
+    return this.authService.confirmEmail(token);
   }
 
   @Public()

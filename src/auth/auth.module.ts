@@ -13,6 +13,8 @@ import { AuthGuard } from './guard/auth.guard';
 import { RolesGuard } from './guard/roles.guard';
 import { PermissionGuard } from './guard/permission.guard';
 
+import { EmailModule } from '../email/email.module';  
+
 @Module({
   imports: [
     forwardRef(() => UsersModule),
@@ -21,6 +23,7 @@ import { PermissionGuard } from './guard/permission.guard';
       secret: jwtConstants.accessSecret,
       signOptions: { expiresIn: jwtConstants.accessTokenExpiresIn as any },
     }),
+    EmailModule,
   ],
   providers: [
     AuthService,

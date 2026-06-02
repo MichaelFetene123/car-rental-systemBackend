@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -7,6 +11,8 @@ import { Role } from '../common/enums/role.enum';
 import { PrismaService } from '../prisma.service';
 import { JwtPayload } from './types/jwt-payload.type';
 import { jwtConstants } from './constants';
+import { EmailService } from '../email/email.service';
+import { createHash, randomBytes } from 'crypto';
 
 const SALT_ROUNDS = 10;
 
@@ -31,18 +37,92 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private prisma: PrismaService,
+    private emailService: EmailService,
   ) {}
 
-  async register(createUserDto: CreateUserDto): Promise<UserResponseDto> {
+  async register(createUserDto: CreateUserDto): Promise<any> {
     const hashedPassword = await bcrypt.hash(
       createUserDto.password,
       SALT_ROUNDS,
     );
 
-    return this.usersService.createUser({
+    const user = await this.usersService.createUser({
       ...createUserDto,
       password: hashedPassword,
     });
+
+    // Generate email verification token and send welcome email
+    
+    const token = await this.createEmailVerification(user.id);
+
+    try {
+      await this.emailService.sendUserWelcome(
+        { email: user.email, name: user.full_name },
+        token,
+      );
+    } catch (error) {
+      console.warn('Failed to send welcome email', error);
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
+      return { user, verificationToken: token };
+    }
+
+    return user;
+  }
+
+  async confirmEmail(token: string) {
+    if (!token) {
+      throw new BadRequestException('Token is required');
+    }
+
+    const tokenHash = this.hashToken(token);
+    const now = new Date();
+
+    const verification = await this.prisma.emailVerification.findFirst({
+      where: {
+        tokenHash,
+        usedAt: null,
+        expiresAt: { gt: now },
+      },
+    });
+
+    if (!verification) {
+      throw new BadRequestException('Invalid or expired token');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.emailVerification.update({
+        where: { id: verification.id },
+        data: { usedAt: now },
+      }),
+      this.prisma.user.update({
+        where: { id: verification.userId },
+        data: { email_verified: true },
+      }),
+    ]);
+
+    return { message: 'Email verified successfully' };
+  }
+
+  private async createEmailVerification(userId: string) {
+    const token = randomBytes(32).toString('hex');
+    const tokenHash = this.hashToken(token);
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await this.prisma.emailVerification.create({
+      data: {
+        userId,
+        tokenHash,
+        expiresAt,
+      },
+    });
+
+    return token;
+  }
+
+  private hashToken(token: string) {
+    return createHash('sha256').update(token).digest('hex');
   }
 
   async login(email: string, password: string) {
