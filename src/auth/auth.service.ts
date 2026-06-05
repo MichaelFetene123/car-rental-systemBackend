@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -46,23 +47,35 @@ export class AuthService {
       SALT_ROUNDS,
     );
 
-    const user = await this.usersService.createUser({
-      ...createUserDto,
-      password: hashedPassword,
-    });
+    let user: UserResponseDto;
+
+    try {
+      user = await this.usersService.createUser({
+        ...createUserDto,
+        password: hashedPassword,
+      });
+    } catch (error) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error as { code: unknown }).code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'An account with this email already exists.',
+        );
+      }
+      throw error;
+    }
 
     // Generate email verification token and send welcome email
     
     const token = await this.createEmailVerification(user.id);
 
-    try {
-      await this.emailService.sendUserWelcome(
-        { email: user.email, name: user.full_name },
-        token,
-      );
-    } catch (error) {
-      console.warn('Failed to send welcome email', error);
-    }
+    await this.emailService.sendUserWelcome(
+      { email: user.email, name: user.full_name },
+      token,
+    );
 
     if (process.env.NODE_ENV !== 'production') {
       return { user, verificationToken: token };
@@ -91,6 +104,29 @@ export class AuthService {
       throw new BadRequestException('Invalid or expired token');
     }
 
+    const user = await this.prisma.user.findUnique({
+      where: { id: verification.userId },
+      include: {
+        userRoles: {
+          include: {
+            role: {
+              include: {
+                rolePermissions: {
+                  include: {
+                    permission: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
     await this.prisma.$transaction([
       this.prisma.emailVerification.update({
         where: { id: verification.id },
@@ -102,13 +138,34 @@ export class AuthService {
       }),
     ]);
 
-    return { message: 'Email verified successfully' };
+    const roles: Role[] = user.userRoles.map((ur) => ur.role.type as Role);
+    const permissions = user.userRoles.flatMap((ur) => {
+      const perms = ur.role.rolePermissions.map((rp) => rp.permission.code);
+      if (ur.role.type === Role.User) {
+        return perms.filter(
+          (p) => p !== 'view_dashboard' && p !== 'manage_roles',
+        );
+      }
+      return perms;
+    });
+
+    const tokens = await this.createAuthTokens({
+      sub: user.id,
+      email: user.email,
+      full_name: user.full_name,
+      email_verified: true,
+      roles,
+      permissions: [...new Set(permissions)],
+      tokenVersion: user.tokenVersion,
+    });
+
+    return { message: 'Email verified successfully', ...tokens };
   }
 
   private async createEmailVerification(userId: string) {
     const token = randomBytes(32).toString('hex');
     const tokenHash = this.hashToken(token);
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 60 minutes
 
     await this.prisma.emailVerification.create({
       data: {
@@ -119,6 +176,39 @@ export class AuthService {
     });
 
     return token;
+  }
+
+  async resendVerification(email: string) {
+    const user = await this.usersService.findUserByEmailWithRoles(email);
+
+    if (!user) {
+      return { message: 'Verification email sent' };
+    }
+
+    if (user.email_verified) {
+      return { message: 'Email already verified' };
+    }
+
+    await this.prisma.emailVerification.updateMany({
+      where: {
+        userId: user.id,
+        usedAt: null,
+      },
+      data: { usedAt: new Date() },
+    });
+
+    const token = await this.createEmailVerification(user.id);
+
+    try {
+      await this.emailService.sendUserWelcome(
+        { email: user.email, name: user.full_name },
+        token,
+      );
+    } catch (error) {
+      console.warn('Failed to send verification email', error);
+    }
+
+    return { message: 'Verification email sent' };
   }
 
   private hashToken(token: string) {
@@ -132,6 +222,12 @@ export class AuthService {
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) throw new UnauthorizedException();
+
+    if (!user.email_verified) {
+      throw new UnauthorizedException(
+        'Please verify your email before logging in.',
+      );
+    }
 
     await this.usersService.touchUserActivity(user.id);
 
@@ -152,6 +248,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       full_name: user.full_name,
+      email_verified: user.email_verified,
       roles,
       permissions: [...new Set(permissions)],
       tokenVersion: user.tokenVersion,
@@ -203,6 +300,12 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token has been revoked');
     }
 
+    if (!user.email_verified) {
+      throw new UnauthorizedException(
+        'Please verify your email before logging in.',
+      );
+    }
+
     const roles: Role[] = user.userRoles.map((ur) => ur.role.type as Role);
     const permissions = user.userRoles.flatMap((ur) => {
       const perms = ur.role.rolePermissions.map((rp) => rp.permission.code);
@@ -218,6 +321,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       full_name: user.full_name,
+      email_verified: user.email_verified,
       roles,
       permissions: [...new Set(permissions)],
       tokenVersion: user.tokenVersion,
@@ -279,6 +383,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       full_name: user.full_name,
+      email_verified: user.email_verified,
       roles,
       permissions,
       tokenVersion: user.tokenVersion,
@@ -309,3 +414,4 @@ export class AuthService {
     return { message: 'Logout successful' };
   }
 }
+

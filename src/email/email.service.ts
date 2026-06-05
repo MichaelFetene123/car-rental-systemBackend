@@ -12,7 +12,7 @@ export class EmailService {
 
   async sendUserWelcome(user: EmailUser, token: string) {
     const baseUrl = process.env.APP_BASE_URL ?? 'http://localhost:3000';
-    const confirmation_url = `${baseUrl.replace(/\/$/, '')}/auth/confirm?token=${encodeURIComponent(token)}`;
+    const confirmation_url = `${baseUrl.replace(/\/$/, '')}/verify-email?token=${encodeURIComponent(token)}`;
 
     await this.mailerService.sendMail({
       to: user.email,

@@ -63,6 +63,28 @@ export class AuthController {
   }
 
   @Public()
+  @Post('verify-email')
+  async verifyEmail(
+    @Body() dto: { token: string },
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.authService.confirmEmail(dto.token);
+
+    if ('access_token' in result && 'refresh_token' in result) {
+      this.setRefreshCookie(response, result.refresh_token);
+      return { access_token: result.access_token };
+    }
+
+    return result;
+  }
+
+  @Public()
+  @Post('resend-verification')
+  async resendVerification(@Body() dto: { email: string }) {
+    return this.authService.resendVerification(dto.email);
+  }
+
+  @Public()
   @Post('register')
   async register(@Body() createUserDto: CreateUserDto) {
     return await this.authService.register(createUserDto);
