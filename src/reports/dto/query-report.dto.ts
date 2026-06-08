@@ -28,4 +28,7 @@ export class QueryReportDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+
+  @IsOptional()
+  format?: 'pdf' | 'csv' | 'xlsx';
 }

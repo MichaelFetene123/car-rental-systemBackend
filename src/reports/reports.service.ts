@@ -59,49 +59,86 @@ export class ReportsService {
   // =========================
   async getTrend(query: QueryReportDto) {
     const dateFilter = this.getDateFilter(query);
+    
+    const map = new Map<
+      string,
+      { period: string; revenue: number; bookings: number; cars: number }
+    >();
 
+    const getPeriodKey = (date: Date) => {
+      if (query.type === ReportType.MONTHLY) {
+        // e.g. 2026-05 for May 2026 or just May
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        return `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+      } else {
+        return date.toISOString().split('T')[0];
+      }
+    };
+
+    // 1. Revenue
     const payments = await this.prisma.payment.findMany({
       where: {
         status: 'completed',
         paidAt: dateFilter,
       },
-      select: {
-        paidAt: true,
-        amount: true,
-        tax: true,
-        fees: true,
-      },
     });
 
-    const map = new Map<string, number>();
-
     for (const p of payments) {
-      const date = new Date(p.paidAt!);
-
-      let key: string;
-
-      if (query.type === ReportType.MONTHLY) {
-        key = `${date.getFullYear()}-${date.getMonth() + 1}`;
-      } else {
-        key = date.toISOString().split('T')[0];
-      }
-
+      if (!p.paidAt) continue;
+      const key = getPeriodKey(new Date(p.paidAt));
       const revenue = Number(p.amount) + Number(p.tax) + Number(p.fees);
 
-      map.set(key, (map.get(key) || 0) + revenue);
+      if (!map.has(key)) {
+        map.set(key, { period: key, revenue: 0, bookings: 0, cars: 0 });
+      }
+      map.get(key)!.revenue += revenue;
     }
 
-    return Array.from(map.entries()).map(([period, revenue]) => ({
-      period,
-      revenue,
-    }));
+    // 2. Bookings & Cars
+    const bookings = await this.prisma.booking.findMany({
+      where: { bookedAt: dateFilter },
+      select: { bookedAt: true, carId: true },
+    });
+
+    const carSets = new Map<string, Set<string>>();
+
+    for (const b of bookings) {
+      const key = getPeriodKey(new Date(b.bookedAt));
+      if (!map.has(key)) {
+        map.set(key, { period: key, revenue: 0, bookings: 0, cars: 0 });
+      }
+      map.get(key)!.bookings += 1;
+
+      if (!carSets.has(key)) carSets.set(key, new Set());
+      carSets.get(key)!.add(b.carId);
+    }
+
+    for (const [key, value] of map.entries()) {
+      value.cars = carSets.get(key)?.size || 0;
+    }
+
+    const sortableFormat = (periodStr: string) => {
+      if (query.type === ReportType.MONTHLY) {
+        return new Date(periodStr).getTime();
+      }
+      return new Date(periodStr).getTime();
+    };
+
+    return Array.from(map.values()).sort(
+      (a, b) => sortableFormat(a.period) - sortableFormat(b.period),
+    );
   }
 
   // =========================
-  // 3. REVENUE BY CATEGORY
+  // 3. REVENUE & BOOKINGS BY CATEGORY
   // =========================
   async getRevenueByCategory(query: QueryReportDto) {
     const dateFilter = this.getDateFilter(query);
+
+    const map = new Map<
+      string,
+      { category: string; revenue: number; bookings: number }
+    >();
 
     const payments = await this.prisma.payment.findMany({
       where: {
@@ -110,31 +147,35 @@ export class ReportsService {
       },
       include: {
         booking: {
-          include: {
-            car: {
-              include: {
-                category: true,
-              },
-            },
-          },
+          include: { car: { include: { category: true } } },
         },
       },
     });
 
-    const map = new Map<string, number>();
-
     for (const p of payments) {
       const category = p.booking.car.category?.name || 'Unknown';
-
       const revenue = Number(p.amount) + Number(p.tax) + Number(p.fees);
 
-      map.set(category, (map.get(category) || 0) + revenue);
+      if (!map.has(category)) {
+        map.set(category, { category, revenue: 0, bookings: 0 });
+      }
+      map.get(category)!.revenue += revenue;
     }
 
-    return Array.from(map.entries()).map(([category, revenue]) => ({
-      category,
-      revenue,
-    }));
+    const bookings = await this.prisma.booking.findMany({
+      where: { bookedAt: dateFilter },
+      include: { car: { include: { category: true } } },
+    });
+
+    for (const b of bookings) {
+      const category = b.car.category?.name || 'Unknown';
+      if (!map.has(category)) {
+        map.set(category, { category, revenue: 0, bookings: 0 });
+      }
+      map.get(category)!.bookings += 1;
+    }
+
+    return Array.from(map.values());
   }
 
   // =========================
@@ -142,7 +183,6 @@ export class ReportsService {
   // =========================
   async getTopCategories(query: QueryReportDto) {
     const data = await this.getRevenueByCategory(query);
-
     return data.sort((a, b) => b.revenue - a.revenue).slice(0, 5);
   }
 
@@ -150,35 +190,7 @@ export class ReportsService {
   // 5. MOST BOOKED
   // =========================
   async getMostBooked(query: QueryReportDto) {
-    const dateFilter = this.getDateFilter(query);
-
-    const bookings = await this.prisma.booking.findMany({
-      where: {
-        bookedAt: dateFilter,
-      },
-      include: {
-        car: {
-          include: {
-            category: true,
-          },
-        },
-      },
-    });
-
-    const map = new Map<string, number>();
-
-    for (const b of bookings) {
-      const category = b.car.category?.name || 'Unknown';
-
-      map.set(category, (map.get(category) || 0) + 1);
-    }
-
-    return Array.from(map.entries())
-      .map(([category, bookings]) => ({
-        category,
-        bookings,
-      }))
-      .sort((a, b) => b.bookings - a.bookings)
-      .slice(0, 5);
+    const data = await this.getRevenueByCategory(query);
+    return data.sort((a, b) => b.bookings - a.bookings).slice(0, 5);
   }
 }

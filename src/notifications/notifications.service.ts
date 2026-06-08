@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma.service';
 import * as nodemailer from 'nodemailer';
 import { Twilio } from 'twilio';
@@ -322,5 +323,29 @@ export class NotificationsService {
       pending,
       successRate: total ? (sent / total) * 100 : 0,
     };
+  }
+
+  async deleteLog(id: string) {
+    return this.prisma.notificationLog.delete({
+      where: { id },
+    });
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async cleanupOldLogs() {
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    const result = await this.prisma.notificationLog.deleteMany({
+      where: {
+        sent_at: {
+          lt: ninetyDaysAgo,
+        },
+      },
+    });
+
+    if (result.count > 0) {
+      console.log(`Cleaned up ${result.count} old notification logs.`);
+    }
   }
 }

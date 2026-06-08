@@ -72,10 +72,34 @@ export class AuthService {
     
     const token = await this.createEmailVerification(user.id);
 
-    await this.emailService.sendUserWelcome(
-      { email: user.email, name: user.full_name },
-      token,
-    );
+    try {
+      await this.emailService.sendUserWelcome(
+        { email: user.email, name: user.full_name },
+        token,
+      );
+
+      await this.prisma.notificationLog.create({
+        data: {
+          type: 'email',
+          recipient: user.email,
+          subject: 'Email Verification Sent',
+          status: 'sent',
+          user_id: user.id,
+        },
+      });
+    } catch (error) {
+      await this.prisma.notificationLog.create({
+        data: {
+          type: 'email',
+          recipient: user.email,
+          subject: 'Email Verification Sent',
+          status: 'failed',
+          user_id: user.id,
+          error_message: error.message || 'Failed to send email',
+        },
+      });
+      // Do not block registration if email fails
+    }
 
     if (process.env.NODE_ENV !== 'production') {
       return { user, verificationToken: token };
@@ -101,6 +125,25 @@ export class AuthService {
     });
 
     if (!verification) {
+      // Find out why it failed to log properly
+      const failedVerification = await this.prisma.emailVerification.findFirst({
+        where: { tokenHash },
+        include: { user: true }
+      });
+      
+      if (failedVerification && failedVerification.user) {
+        await this.prisma.notificationLog.create({
+          data: {
+            type: 'email',
+            recipient: failedVerification.user.email,
+            subject: 'Email Verification Failed',
+            status: 'failed',
+            error_message: failedVerification.usedAt ? 'Token already used' : 'Verification link expired',
+            user_id: failedVerification.userId,
+          },
+        });
+      }
+
       throw new BadRequestException('Invalid or expired token');
     }
 
@@ -135,6 +178,15 @@ export class AuthService {
       this.prisma.user.update({
         where: { id: verification.userId },
         data: { email_verified: true },
+      }),
+      this.prisma.notificationLog.create({
+        data: {
+          type: 'email',
+          recipient: user.email,
+          subject: 'Email Verified Successfully',
+          status: 'sent',
+          user_id: user.id,
+        },
       }),
     ]);
 
@@ -204,8 +256,29 @@ export class AuthService {
         { email: user.email, name: user.full_name },
         token,
       );
+
+      await this.prisma.notificationLog.create({
+        data: {
+          type: 'email',
+          recipient: user.email,
+          subject: 'Email Verification Sent',
+          status: 'sent',
+          user_id: user.id,
+        },
+      });
     } catch (error) {
       console.warn('Failed to send verification email', error);
+      
+      await this.prisma.notificationLog.create({
+        data: {
+          type: 'email',
+          recipient: user.email,
+          subject: 'Email Verification Sent',
+          status: 'failed',
+          user_id: user.id,
+          error_message: error.message || 'Failed to send email',
+        },
+      });
     }
 
     return { message: 'Verification email sent' };

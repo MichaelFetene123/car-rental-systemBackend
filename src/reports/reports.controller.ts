@@ -47,7 +47,7 @@ export class ReportsController {
   @RequirePermission(PermissionType.MANAGE_REPORT)
   async exportReport(
     @Query() query: QueryReportDto,
-    @Query('format') format: 'pdf' | 'csv',
+    @Query('format') format: 'pdf' | 'csv' | 'xlsx',
     @Res() res: Response,
   ) {
     if (format === 'csv') {
@@ -57,6 +57,18 @@ export class ReportsController {
       res.attachment('report.csv');
 
       return res.send(csv);
+    }
+    
+    if (format === 'xlsx') {
+      const xlsxBuffer = await this.exportService.exportXLSX(query);
+
+      res.set({
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': 'attachment; filename=report.xlsx',
+        'Content-Length': xlsxBuffer.length,
+      });
+
+      return res.end(xlsxBuffer);
     }
 
     const pdfBuffer = await this.exportService.exportPDF(query);

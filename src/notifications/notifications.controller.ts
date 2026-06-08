@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Query } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, Delete, Param } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { UpdateEmailSettingsDto } from './dto/email-settings.dto';
 import { UpdateSmsSettingsDto } from './dto/sms-settings.dto';
@@ -53,5 +53,12 @@ export class NotificationsController {
   @RequirePermission(PermissionType.MANAGE_NOTIFICATIONS)
   getStats() {
     return this.service.getStats();
+  }
+
+  @Delete('logs/:id')
+  @Roles(Role.Admin, Role.Staff)
+  @RequirePermission(PermissionType.MANAGE_NOTIFICATIONS)
+  deleteLog(@Param('id') id: string) {
+    return this.service.deleteLog(id);
   }
 }
