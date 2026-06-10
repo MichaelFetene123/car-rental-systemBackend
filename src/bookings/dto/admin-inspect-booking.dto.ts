@@ -8,7 +8,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { PaymentMethod } from '../../generated/prisma/client';
+import { PaymentMethod } from '@prisma/client';
 
 export class AdminInspectBookingDto {
   @IsUUID()

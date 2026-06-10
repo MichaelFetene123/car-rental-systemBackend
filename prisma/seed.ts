@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient, RoleType } from '../src/generated/prisma/client';
+import { PrismaClient, RoleType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PermissionType } from '../src/common/enums/permission.enum';
 

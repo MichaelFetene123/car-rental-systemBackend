@@ -2,7 +2,7 @@ import { IsOptional, IsEnum, IsString } from 'class-validator';
 import {
   NotificationLogStatus,
   NotificationTemplateType,
-} from '../../generated/prisma/client';
+} from '@prisma/client';
 
 export class QueryLogsDto {
   @IsOptional()

@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
-import { Prisma, PaymentStatus } from '../../generated/prisma/client';
+import { Prisma, PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma.service';
 import {
   AdminPaymentQueryDto,

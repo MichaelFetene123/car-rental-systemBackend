@@ -14,7 +14,7 @@ import {
   PaymentStatus,
   PaymentMethod,
   Prisma,
-} from '../generated/prisma/client';
+} from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import {
   isPaymentCovered,

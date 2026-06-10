@@ -1,5 +1,5 @@
 import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
-import { PaymentMethod } from '../../generated/prisma/client';
+import { PaymentMethod } from '@prisma/client';
 
 export class InitiatePaymentDto {
   @IsOptional()

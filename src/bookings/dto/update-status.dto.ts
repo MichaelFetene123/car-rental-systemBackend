@@ -6,7 +6,7 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
-import { BookingStatus } from '../../generated/prisma/client';
+import { BookingStatus } from '@prisma/client';
 import { RefundMode } from './admin-reject-booking.dto';
 
 export class UpdateBookingStatusDto {

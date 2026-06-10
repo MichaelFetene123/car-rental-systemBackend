@@ -6,7 +6,7 @@ import {
   BookingStatus,
   CarStatus,
   PaymentStatus,
-} from '../generated/prisma/client';
+} from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { DashboardResponseDto } from './dto/dashboard-response.dto';
 

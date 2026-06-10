@@ -8,7 +8,7 @@ import {
   Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { CarStatus } from '../../generated/prisma/client';
+import { CarStatus } from '@prisma/client';
 
 export class CreateCarDto {
   @IsString()

@@ -12,7 +12,7 @@ import {
   BookingStatus,
   CarStatus,
   Prisma,
-} from '../../generated/prisma/client';
+} from '@prisma/client';
 
 // for image
 import * as fs from 'fs';
