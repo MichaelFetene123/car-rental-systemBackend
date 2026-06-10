@@ -5,6 +5,16 @@
     "seed": "tsx prisma/seed.ts"
   },
   "packageManager": "pnpm@10.29.2",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@prisma/engines",
+      "bcrypt",
+      "esbuild",
+      "prisma",
+      "unrs-resolver"
+    ]
+  },
   "description": "",
   "author": "",
   "private": true,
