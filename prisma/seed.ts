@@ -6,8 +6,17 @@ import * as bcrypt from 'bcrypt';
 import { PermissionType } from '../src/common/enums/permission.enum';
 
 const connectionString = process.env.DATABASE_URL!;
-
-const pool = new Pool({ connectionString });
+const pool = new Pool({
+  connectionString,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+  max: 10,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
+  ssl: {
+    rejectUnauthorized: false,
+  },
+});
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
@@ -541,11 +550,9 @@ async function main() {
 main()
   .then(async () => {
     await prisma.$disconnect();
-    await pool.end();
   })
   .catch(async (e) => {
     console.error(e);
     await prisma.$disconnect();
-    await pool.end();
     process.exit(1);
   });

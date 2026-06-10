@@ -4,7 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AppService } from './app.service.js';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, Reflector } from '@nestjs/core';
 import { HttpExceptionFilter } from './filter/http-exception.filter';
 import { LocationsModule } from './locations/locations.module';
 import { CarsModule } from './cars/cars.module';
@@ -46,6 +46,7 @@ import { EmailModule } from './email/email.module';
       useClass: HttpExceptionFilter,
     },
     AppService,
+    Reflector,
   ],
 })
 export class AppModule {}

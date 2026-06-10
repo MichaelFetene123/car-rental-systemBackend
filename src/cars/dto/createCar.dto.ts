@@ -8,7 +8,7 @@ import {
   Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { CarStatus } from '../../generated/prisma/enums';
+import { CarStatus } from '../../generated/prisma/client';
 
 export class CreateCarDto {
   @IsString()
