@@ -132,10 +132,24 @@ export class AdminUsersService {
   async deleteUserByAdmin(userid: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userid },
+      include: {
+        _count: {
+          select: {
+            bookings: true,
+          },
+        },
+      },
     });
 
     if (!user) {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (user._count.bookings > 0) {
+      throw new HttpException(
+        `This user has ${user._count.bookings} booking${user._count.bookings > 1 ? 's' : ''} and can't be deleted`,
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     await this.prisma.user.delete({
